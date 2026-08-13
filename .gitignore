@@ -1,11 +1,10 @@
-build/
-.vs/
-.idea/
-.vscode/
+/build/
+/.vs/
+/.idea/
+/.vscode/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
 *.aps
-logs/
 *.log
