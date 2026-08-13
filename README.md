@@ -12,6 +12,8 @@ Destiny 2 Offline Exploration Mod
 ### [Discord](https://discord.gg/22JS6et5k9)
 
 ### Support Me
+Leave a start on this repo.
+
 If you want to support my open source work you can find the means on my [profile](https://github.com/stanuwu). Also consider donating to charity instead.
 
 All content released under this project is free and open source. If someone is trying to sell you something you are getting scammed.
