@@ -9,7 +9,7 @@ Destiny 2 Offline Exploration Mod
 
 ### [FAQ](https://github.com/stanuwu/Sunrise/wiki/FAQ) - [Common Issues](https://github.com/stanuwu/Sunrise/wiki/Common-Issues)
 
-### [Discord](https://discord.gg/jQYqhkuh7h)
+### [Discord](https://discord.gg/22JS6et5k9)
 
 ### Support Me
 If you want to support my open source work you can find the means on my [profile](https://github.com/stanuwu). Also consider donating to charity instead.
