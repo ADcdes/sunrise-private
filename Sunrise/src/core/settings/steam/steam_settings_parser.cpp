@@ -123,6 +123,35 @@ decode_escape(std::string_view encoded, std::size_t& position, char& output) noe
     return true;
 }
 
+/**
+ * Decodes a nonempty Steam API language token into process-owned fixed storage.
+ * @param encoded Borrowed encoded JSON string bytes.
+ * @param output Receives the decoded bytes and a trailing null only on success.
+ * @return True for 1 to 15 printable ASCII bytes.
+ */
+[[nodiscard]] bool decode_language(std::string_view encoded,
+                                   std::array<char, steam::kLanguageCapacity>& output) noexcept {
+    std::array<char, steam::kLanguageCapacity> candidate{};
+    std::size_t decodedCount = 0;
+    for (std::size_t position = 0; position < encoded.size();) {
+        char value = encoded[position++];
+        if (value == '\\' && !decode_escape(encoded, position, value)) {
+            return false;
+        }
+        const auto byte = static_cast<unsigned char>(value);
+        if (byte < kMinimumPrintableAscii || byte > kMaximumPrintableAscii
+            || decodedCount >= steam::kMaximumLanguageBytes) {
+            return false;
+        }
+        candidate[decodedCount++] = value;
+    }
+    if (decodedCount == 0) {
+        return false;
+    }
+    output = candidate;
+    return true;
+}
+
 } // namespace
 
 /** Parses Steam settings on top of the fixed defaults. */
@@ -132,6 +161,7 @@ bool Parser::steam_settings(steam::Settings& output) noexcept {
     }
     steam::Settings candidate = output;
     bool hasUser = false;
+    bool hasLanguage = false;
     if (consume('}')) {
         return true;
     }
@@ -145,6 +175,12 @@ bool Parser::steam_settings(steam::Settings& output) noexcept {
                 return false;
             }
             hasUser = true;
+        } else if (key == "language") {
+            std::string_view value;
+            if (hasLanguage || !string(value) || !decode_language(value, candidate.language)) {
+                return false;
+            }
+            hasLanguage = true;
         } else if (!skip_value(0)) {
             return false;
         }
