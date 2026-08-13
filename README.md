@@ -2,7 +2,7 @@
 Destiny 2 Offline Exploration Mod
 
 > This mod installs onto an old build of the game and allows you to play it offline, loading into destinations and exploring them.
-> 
+>
 > No other features are currently supported. (Missions, Enemies, NPCs, Quests, Inventory Management, ...)
 
 ### [Install Instructions](https://github.com/stanuwu/Sunrise/wiki/Installing)
@@ -19,7 +19,16 @@ All content released under this project is free and open source. If someone is t
 ### WIP
 This mod is work in progress. Things might break or work in unexpected ways. There is also currently a lack of documentation. This will improve over the coming weeks.
 
+### Contributing
+Pull Requests are welcome. Please follow these rules:
+- No Copyrighted Data - All game data should be extracted at runtime.
+- Code Formatting - Stick to the provided clang-format and clang-tidy configs.
+- Clean Code - Try to post readable high quality code, follow the projects existing style of comment and add docs.
+- Provide Documentation - Please explain what you changed, why you changed it and the effects it has in detail, it saves me a lot of work.
+- Follow Up - If something with the PR is not right, I will reply and ask you to fix it.
+
 ## Credits
+### All Contributors
 ### Dependencies:
 - https://github.com/ocornut/imgui
 - https://github.com/microsoft/detours
