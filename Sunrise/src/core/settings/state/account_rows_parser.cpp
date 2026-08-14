@@ -15,6 +15,7 @@ constexpr std::uint64_t kMaximumDestinationHash = (std::numeric_limits<std::uint
 /** Parses the authored account-wide item array. */
 bool Parser::profile_items(state::AccountState& output) noexcept {
     namespace inventory = state::account::inventory;
+    output.profileItems = {};
     output.profileItemCount = 0;
     if (!consume('[')) {
         return false;
@@ -115,6 +116,7 @@ bool Parser::character(state::CharacterState& output) noexcept {
     }
     bool hasSoid = false;
     bool hasEquipment = false;
+    bool hasInventory = false;
     if (consume('}')) {
         return false;
     }
@@ -202,6 +204,11 @@ bool Parser::character(state::CharacterState& output) noexcept {
                 return false;
             }
             hasEquipment = true;
+        } else if (key == "inventory") {
+            if (hasInventory || !character_inventory(output.inventory)) {
+                return false;
+            }
+            hasInventory = true;
         } else if (!skip_value(0)) {
             return false;
         }

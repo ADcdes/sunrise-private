@@ -166,6 +166,15 @@ private:
      */
     [[nodiscard]] bool equipment(state::account::inventory::Equipment& output) noexcept;
     /**
+     * Parses the optional unequipped character inventory array.
+     * @param output
+     * Receives items in authored bucket-placement order.
+     * @return True when every item is
+     * complete and the fixed array has room.
+     */
+    [[nodiscard]] bool
+    character_inventory(state::account::inventory::CharacterItems& output) noexcept;
+    /**
      * Parses one item only when every required named field appears exactly once.
      * @param output Receives the complete item after checking.
      * @return True when all fields fit their fixed State form.

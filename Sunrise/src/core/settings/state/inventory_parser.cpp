@@ -72,6 +72,34 @@ bool Parser::equipment(authored_inventory::Equipment& output) noexcept {
     }
 }
 
+/** Parses the optional unequipped character inventory array. */
+bool Parser::character_inventory(authored_inventory::CharacterItems& output) noexcept {
+    authored_inventory::CharacterItems parsed{};
+    if (!consume('[')) {
+        return false;
+    }
+    if (consume(']')) {
+        output = parsed;
+        return true;
+    }
+    for (;;) {
+        if (parsed.count >= parsed.values.size() || !equipment_item(parsed.values[parsed.count])) {
+            return false;
+        }
+        ++parsed.count;
+        if (consume(']')) {
+            if (!authored_inventory::valid(parsed)) {
+                return false;
+            }
+            output = parsed;
+            return true;
+        }
+        if (!consume(',')) {
+            return false;
+        }
+    }
+}
+
 /** Parses one item only when every required named field appears exactly once. */
 bool Parser::equipment_item(authored_inventory::Item& output) noexcept {
     authored_inventory::Item parsed{};

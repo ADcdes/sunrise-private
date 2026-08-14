@@ -186,7 +186,7 @@ bool Parser::state_settings(Settings& output) noexcept {
             return false;
         }
         if (consume('}')) {
-            return state::account::valid(output.initialAccount)
+            return state::account::valid_authored(output.initialAccount)
                    && state::activity::defaults::valid(output.initialActivityDefaults);
         }
         if (!consume(',')) {

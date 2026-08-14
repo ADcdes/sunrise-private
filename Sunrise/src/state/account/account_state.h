@@ -91,6 +91,10 @@ struct CharacterState {
     std::uint8_t classAbilityEntry{kDefaultClassAbilityEntry};
     /** Authored loadout keyed only by stable semantic equipment slots. */
     account::inventory::Equipment equipment;
+    /** Unequipped items routed into their installed character-inventory bucket ranges. */
+    account::inventory::CharacterItems inventory;
+    /** Next row generation; equip transactions consume two values for the two moved items. */
+    std::uint32_t nextInventorySerial{};
 };
 
 /** Account identity shared by backend object families. */
@@ -108,6 +112,9 @@ struct AccountState {
 namespace account {
 
 [[nodiscard]] bool valid(const AccountState& state) noexcept;
+
+/** Checks settings-authored State before runtime-only profile stack SOIDs are assigned. */
+[[nodiscard]] bool valid_authored(const AccountState& state) noexcept;
 
 [[nodiscard]] std::uint64_t selected_character_soid(const AccountState& state) noexcept;
 
