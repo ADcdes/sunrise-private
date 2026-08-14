@@ -12,7 +12,6 @@
 #include "../content/investment/worker.h"
 #include "../executable/image.h"
 #include "../hooks/assert_handler/assert_handler_lifecycle.h"
-#include "../hooks/banner/banner_hook_lifecycle.h"
 #include "../hooks/bitmap/bitmap_hook_lifecycle.h"
 #include "../hooks/bootflow/bootflow_hook_lifecycle.h"
 #include "../hooks/config_getter/config_getter_lifecycle.h"
@@ -162,9 +161,6 @@ void clear_game_targets() noexcept {
     // The bitmap reference guard puts the none sentinel in place of a reference outside tag
     // space. Without it the widget's stored-reference reader faults.
     (void)hooks::bitmap::install();
-    // The orbit banner component ships unbound, so its update body never runs and it draws the
-    // constructor's values.
-    (void)hooks::banner::install();
     content::investment::worker::activate();
     return true;
 }
