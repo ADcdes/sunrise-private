@@ -30,7 +30,10 @@ constexpr std::size_t kLineLimit = 96;
  */
 [[nodiscard]] bool ready() noexcept {
     return state::build_data::named_catalog_ready() && state::build_data::item_definitions_ready()
+           && state::build_data::collectible_definitions_ready()
+           && state::build_data::material_requirement_sets_ready()
            && state::build_data::configured_item_details_ready()
+           && state::build_data::socket_plug_rules_ready()
            && state::build_data::inventory_bucket_descriptors_ready()
            && state::build_data::socket_entry_lists_ready()
            && state::build_data::ability_buckets_ready()
@@ -77,7 +80,8 @@ bool refresh() noexcept {
         // The same lock as the extraction path. A cache write holds its own lock across file
         // calls, so a held thread stopped inside one would deadlock the freeze below.
         AcquireSRWLockExclusive(&g_refreshLock);
-        const bool persisted = state::build_data::persist();
+        const bool persisted =
+            state::ensure_profile_item_identities() && state::build_data::persist();
         // Nothing reads a package again until the next boot, so the open files and the held
         // tables go back now rather than at process exit.
         middleware::content::packages::reader::release_caches();
@@ -106,7 +110,9 @@ bool refresh() noexcept {
     }
     // The package pass owns the item table and must not wait on runtime content lookups.
     (void)items::packages::build();
-    const bool complete = ready() && state::build_data::persist();
+    const bool domainsReady = ready();
+    const bool complete =
+        domainsReady && state::ensure_profile_item_identities() && state::build_data::persist();
     process::freeze::release(held);
     // The overlay ends with the work, not with the slice, so it spans every retry the pass needs.
     if (complete) {

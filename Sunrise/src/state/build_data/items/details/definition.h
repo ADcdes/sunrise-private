@@ -8,11 +8,14 @@
 namespace sunrise::state::build_data::items::details {
 
 /**
- * Configured equipment plus every plug those items socket. 16 slots on 3 characters is 48 items,
- * and each item sockets up to 12 plugs whose own details the character record needs. The size
- * covers both sets with duplicates removed.
+ * Installed item definitions used by Collections, character instances, profile stacks, and
+ *
+ * their native initial plugs. The
+ * supported installed build carries 15,424 total item rows, so
+ * the next power of two is also a
+ * formal upper bound for the deduplicated detail closure.
  */
-inline constexpr std::size_t kDefinitionCapacity = 768;
+inline constexpr std::size_t kDefinitionCapacity = 16384;
 /** Family item instances have 12 fixed ordinary socket lanes. */
 inline constexpr std::size_t kInitialPlugCapacity = 12;
 /** Native equipment ids run from 0 to 19. */
@@ -80,7 +83,7 @@ unavailable_plug_indices() noexcept {
     return result;
 }
 
-/** Installed-build fields required to generate one configured item instance. */
+/** Installed-build fields required to generate one supported item instance. */
 struct Definition {
     std::uint16_t definitionIndex{};
     /** The definition's own hash, which the character record collects for its overflow bank. */

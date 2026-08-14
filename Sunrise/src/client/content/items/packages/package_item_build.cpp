@@ -30,7 +30,10 @@ namespace {
 /** @return True when every domain owned by the package pass is published. */
 [[nodiscard]] bool package_domains_ready() noexcept {
     return state::build_data::item_definitions_ready()
+           && state::build_data::collectible_definitions_ready()
+           && state::build_data::material_requirement_sets_ready()
            && state::build_data::configured_item_details_ready()
+           && state::build_data::socket_plug_rules_ready()
            && state::build_data::inventory_bucket_descriptors_ready()
            && state::build_data::socket_entry_lists_ready()
            && state::build_data::ability_buckets_ready()
@@ -43,7 +46,10 @@ namespace {
 /** @return True when every item and investment-root domain is published. */
 [[nodiscard]] bool root_domains_ready() noexcept {
     return state::build_data::item_definitions_ready()
+           && state::build_data::collectible_definitions_ready()
+           && state::build_data::material_requirement_sets_ready()
            && state::build_data::configured_item_details_ready()
+           && state::build_data::socket_plug_rules_ready()
            && state::build_data::inventory_bucket_descriptors_ready()
            && state::build_data::socket_entry_lists_ready()
            && state::build_data::ability_buckets_ready()
@@ -101,17 +107,34 @@ bool build() noexcept {
             // Fixed navigation: globals child zero is the investment root, whose slot holds the
             // item table, whose array descriptor sits at a fixed offset.
             std::uint32_t rootTag = 0;
+            std::uint32_t rootClass = 0;
             std::uint32_t tableTag = 0;
             reason = "root";
             if (!tables::child_tag(std::span<const std::byte>{storage.container},
                                    tables::kInvestmentRootChild,
                                    rootTag)
-                || rootTag == 0
-                || !reader::read_tag(source, storage.scratch, rootTag, storage.child)) {
+                || rootTag == 0 || tables::package_of(rootTag) == tables::kAbsentPackageId
+                || !reader::read_tag(source, storage.scratch, rootTag, storage.child, rootClass)
+                || rootClass != tables::kInvestmentRootClass) {
                 continue;
             }
             // The same root names the bucket and socket-list tables.
             storage.root = storage.child;
+            if (!state::build_data::socket_plug_rules_ready()) {
+                std::uint32_t plugSetTag = 0;
+                tables::Array plugSets{};
+                reason = "plug_sets";
+                if (!tables::slot_tag(std::span<const std::byte>{storage.root},
+                                      tables::kPlugSetTableSlot,
+                                      plugSetTag)
+                    || plugSetTag == 0
+                    || !reader::read_tag(source, storage.scratch, plugSetTag, storage.plugSetTable)
+                    || !tables::find_array_at(std::span<const std::byte>{storage.plugSetTable},
+                                              tables::kTableArrayDescriptor,
+                                              plugSets)) {
+                    continue;
+                }
+            }
             (void)build_buckets(source, storage, std::span<const std::byte>{storage.root});
             (void)build_socket_entry_lists(
                 source, storage, std::span<const std::byte>{storage.root});
@@ -150,8 +173,16 @@ bool build() noexcept {
                                             table)
                       && table.elementClass == tables::kItemIndexTableClass;
         }
-        if (located) {
-            (void)build_item_rows(source, storage, table, rowCount, reason);
+        if (located && build_item_rows(source, storage, table, rowCount, reason)) {
+            if (!build_material_requirements(
+                    source, storage, std::span<const std::byte>{storage.root}, table.count)) {
+                reason = "materials";
+            } else if (!build_collectibles(source,
+                                           storage,
+                                           std::span<const std::byte>{storage.root},
+                                           table.count)) {
+                reason = "collectibles";
+            }
         }
     }
     SecureZeroMemory(&keys, sizeof keys);

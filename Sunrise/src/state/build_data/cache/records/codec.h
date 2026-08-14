@@ -17,6 +17,20 @@ namespace sunrise::state::build_data::cache::records {
 /** @param value Receives the runtime row. @return True when the disk row is in standard form. */
 [[nodiscard]] bool decode(const ItemRecord& record, items::Definition& value) noexcept;
 
+/** @param record Receives the packed disk row. @return Always true. */
+[[nodiscard]] bool encode(const collectibles::Definition& value,
+                          CollectibleRecord& record) noexcept;
+
+/** @param value Receives the runtime row. @return Always true. */
+[[nodiscard]] bool decode(const CollectibleRecord& record,
+                          collectibles::Definition& value) noexcept;
+
+/** Exact dense action-cost set codecs. */
+[[nodiscard]] bool encode(const material_requirements::Definition& value,
+                          MaterialRequirementSetRecord& record) noexcept;
+[[nodiscard]] bool decode(const MaterialRequirementSetRecord& record,
+                          material_requirements::Definition& value) noexcept;
+
 /** @param record Receives the packed disk row. @return True when the state is a known one. */
 [[nodiscard]] bool encode(const items::details::Definition& value,
                           ItemDetailRecord& record) noexcept;
@@ -24,6 +38,24 @@ namespace sunrise::state::build_data::cache::records {
 /** @param value Receives the runtime row. @return True when the state byte is a known one. */
 [[nodiscard]] bool decode(const ItemDetailRecord& record,
                           items::details::Definition& value) noexcept;
+
+/** Exact ordinary-socket rule codecs. */
+[[nodiscard]] bool encode(const items::socket_plugs::Rule& value,
+                          SocketPlugRuleRecord& record) noexcept;
+[[nodiscard]] bool decode(const SocketPlugRuleRecord& record,
+                          items::socket_plugs::Rule& value) noexcept;
+
+/** Deduplicated socket-pool range codecs. */
+[[nodiscard]] bool encode(const items::socket_plugs::Pool& value,
+                          SocketPlugPoolRecord& record) noexcept;
+[[nodiscard]] bool decode(const SocketPlugPoolRecord& record,
+                          items::socket_plugs::Pool& value) noexcept;
+
+/** Flat allowed-plug member codecs. */
+[[nodiscard]] bool encode(items::socket_plugs::Member value,
+                          SocketPlugMemberRecord& record) noexcept;
+[[nodiscard]] bool decode(const SocketPlugMemberRecord& record,
+                          items::socket_plugs::Member& value) noexcept;
 
 /** @param record Receives the packed disk row. @return Always true. */
 [[nodiscard]] bool encode(const inventory::buckets::Descriptor& value,

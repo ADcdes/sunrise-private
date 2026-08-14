@@ -1,11 +1,39 @@
 #include <array>
+#include <new>
 #include <span>
 #include <vector>
 
+#include "../../../../state/build_data/items/details/item_detail_catalog.h"
 #include "../../../../state/build_data/runtime.h"
 #include "internal.h"
+#include "package_socket_plug_build.h"
 
 namespace sunrise::client::content::items::packages {
+namespace {
+
+namespace build_details = state::build_data::items::details;
+namespace build_items = state::build_data::items;
+
+/** @return True when one extracted detail can join the currently published numeric domains. */
+[[nodiscard]] bool publishable_detail(const build_details::Definition& detail) noexcept {
+    const std::size_t itemCount = state::build_data::item_definition_count();
+    const std::size_t socketListCount = state::build_data::socket_entry_list_count();
+    build_items::Definition item{};
+    if (!build_details::valid(std::span<const build_details::Definition>{&detail, 1})
+        || detail.definitionIndex >= itemCount || detail.socketEntryListIndex >= socketListCount
+        || !build_items::find_index(detail.definitionIndex, item)
+        || item.bucketId != detail.bucketId) {
+        return false;
+    }
+    for (const std::uint16_t plugIndex : detail.initialPlugIndices) {
+        if (plugIndex != build_details::kUnavailableItemIndex && plugIndex >= itemCount) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
 
 /** Walks the located item index table, then publishes every domain that depends on it. */
 bool build_item_rows(const reader::Source& source,
@@ -15,13 +43,22 @@ bool build_item_rows(const reader::Source& source,
                      const char*& reason) noexcept {
     const bool needDefinitions = !state::build_data::item_definitions_ready();
     const bool needDetails = !state::build_data::configured_item_details_ready();
-    const bool needRows = needDefinitions || needDetails;
+    const bool needSocketPlugs = !state::build_data::socket_plug_rules_ready();
+    const bool needDetailRows = needDetails || needSocketPlugs;
+    const bool needRows = needDefinitions || needDetailRows;
     bool published = !needRows;
+    if (needDetails && !storage.details) {
+        storage.details.reset(new (std::nothrow) build_details::Definition[kDetailCapacity]);
+    }
+    const bool detailStorageReady = !needDetails || static_cast<bool>(storage.details);
     const std::span<const std::byte> container{storage.child};
     reason = "rows";
-    // The requested detail set is gathered during this one walk. An authored row is matched by
-    // hash, because the index table that maps a hash to its index is what this loop is building.
-    const bool haveAuthored = needRows && collect_authored_hashes(storage.authoredHashes);
+    // The detail closure is gathered during this one walk. Collections can name any installed
+    // item row, including profile-owned shaders and modifications, so retain every readable row
+    // rather than only startup-authored/equippable definitions. The fixed request bitset still
+    // bounds this to the installed 16-bit item-table domain.
+    storage.detailRequests.reset();
+    storage.specialPlugCategories.fill(0);
     std::size_t detailCount = 0;
     for (std::uint64_t index = 0; needRows && index < table.count && rowCount < storage.rows.size();
          ++index) {
@@ -37,40 +74,88 @@ bool build_item_rows(const reader::Source& source,
                                                item)) {
             continue;
         }
-        storage.rows[rowCount++] = state::build_data::items::Definition{
-            item.definitionHash, item.definitionIndex, item.bucketId};
-        if (haveAuthored && authored(storage.authoredHashes, item.definitionHash)) {
-            (void)request(item.definitionIndex, storage.requested, detailCount);
-            (void)append_initial_plugs(item, storage.requested, detailCount);
+        storage.rows[rowCount++] =
+            state::build_data::items::Definition{item.definitionHash,
+                                                 item.definitionIndex,
+                                                 item.bucketId,
+                                                 item.insertionMaterialRequirementSetIndex,
+                                                 item.enabledMaterialRequirementSetIndex};
+        if (needSocketPlugs) {
+            storage.specialPlugCategories[item.definitionIndex] =
+                special_plug_category(item.plugCategoryHash);
+        }
+        if (needDetailRows) {
+            request(item.definitionIndex, storage.detailRequests);
+            append_initial_plugs(item, table.count, storage.detailRequests);
         }
     }
+    bool requestsFit = true;
     if (needRows) {
-        compact_requested(storage.requested, detailCount);
-        published = rowCount != 0;
+        requestsFit = !needDetailRows
+                      || materialize_requests(
+                          storage.detailRequests, storage.requestedDetailIndices, detailCount);
+        published = rowCount != 0 && requestsFit && detailStorageReady;
     }
     if (published && needDefinitions) {
         published =
             state::build_data::publish_item_definitions(std::span(storage.rows).first(rowCount));
     }
     if (!published) {
-        reason = "publish";
+        reason = !detailStorageReady ? "detail_storage"
+                 : !requestsFit      ? "detail_capacity"
+                                     : "publish";
     }
-    // Configured rows and every plug they socket each need a detail record, and they are found
-    // through the table this pass just published.
-    if (published && needDetails) {
+    SocketPlugBuild socketPlugBuild;
+    const bool socketStorageReady =
+        !needSocketPlugs
+        || socketPlugBuild.prepare(storage.specialPlugCategories,
+                                   std::span(storage.rows).first(rowCount));
+    if (published && !socketStorageReady) {
+        published = false;
+        reason = "socket_storage";
+    }
+    // Every readable installed row is found through the table this pass just published. One
+    // malformed row is omitted independently so unrelated Collections categories stay usable.
+    if (published && needDetailRows) {
         reason = "details";
         const DetailSource detailSource{
             &source, &storage.scratch, container, table, &storage.definition};
-        for (std::size_t slot = 0; published && slot < detailCount; ++slot) {
-            published = build_detail(detailSource, storage.requested[slot], storage.details[slot]);
-            if (!published) {
-                report_detail_failure(slot, storage.requested[slot]);
+        std::size_t builtDetailCount = 0;
+        for (std::size_t slot = 0; slot < detailCount; ++slot) {
+            build_details::Definition detail{};
+            tables::items::Row item{};
+            if (!build_detail(detailSource, storage.requestedDetailIndices[slot], detail, item)
+                || !publishable_detail(detail)) {
+                report_detail_failure(slot, storage.requestedDetailIndices[slot]);
+                continue;
+            }
+            if (needDetails) {
+                storage.details[builtDetailCount++] = detail;
+            }
+            if (needSocketPlugs) {
+                (void)socketPlugBuild.append(item,
+                                             std::span<const std::byte>{storage.definition},
+                                             std::span<const std::byte>{storage.plugSetTable},
+                                             table.count);
             }
         }
-        published = published
-                    && state::build_data::publish_configured_item_details(
-                        std::span(storage.details).first(detailCount));
-        report_detail_count(detailCount);
+        if (needDetails) {
+            published = state::build_data::publish_configured_item_details(
+                std::span<build_details::Definition>{storage.details.get(), kDetailCapacity}.first(
+                    builtDetailCount));
+            report_detail_count(detailCount, builtDetailCount);
+        }
+        if (published && needSocketPlugs) {
+            const std::size_t rules = socketPlugBuild.rule_count();
+            const std::size_t pools = socketPlugBuild.pool_count();
+            const std::size_t members = socketPlugBuild.member_count();
+            const std::size_t skipped = socketPlugBuild.skipped();
+            reason = "socket_plugs";
+            published = socketPlugBuild.publish();
+            if (published) {
+                report_socket_plug_count(rules, pools, members, skipped);
+            }
+        }
     }
     // Ability buckets read the socket entry list table again and depend on the detail domain, so
     // they run last.
@@ -94,6 +179,7 @@ bool build_item_rows(const reader::Source& source,
     }
     return published && state::build_data::item_definitions_ready()
            && state::build_data::configured_item_details_ready()
+           && state::build_data::socket_plug_rules_ready()
            && state::build_data::ability_buckets_ready();
 }
 

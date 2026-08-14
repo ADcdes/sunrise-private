@@ -39,14 +39,40 @@ void report_ability_count(std::size_t count) noexcept {
     }
 }
 
-/** @param count Detail rows the pass built, covering equipped items and every plug they socket. */
-void report_detail_count(std::size_t count) noexcept {
-    std::array<char, 96> line{};
-    const int written =
-        std::snprintf(line.data(), line.size(), "ev=pkg stage=details result=ok rows=%zu", count);
+/** Reports requested, retained, and skipped rows for the equippable-item detail closure. */
+void report_detail_count(std::size_t requested, std::size_t built) noexcept {
+    std::array<char, 128> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=pkg stage=details result=ok requested=%zu rows=%zu "
+                                      "skipped=%zu",
+                                      requested,
+                                      built,
+                                      requested - built);
     if (written > 0) {
         core::log::write(core::log::Channel::client,
                          core::log::Level::info,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+}
+
+/** Reports the bounded exact ordinary-socket relation extracted from the installed packages. */
+void report_socket_plug_count(std::size_t rules,
+                              std::size_t pools,
+                              std::size_t members,
+                              std::size_t skipped) noexcept {
+    std::array<char, 160> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=pkg stage=socket_plugs result=ok rules=%zu pools=%zu "
+                                      "members=%zu skipped=%zu",
+                                      rules,
+                                      pools,
+                                      members,
+                                      skipped);
+    if (written > 0) {
+        core::log::write(core::log::Channel::client,
+                         skipped == 0 ? core::log::Level::info : core::log::Level::warn,
                          {line.data(), static_cast<std::size_t>(written)});
     }
 }

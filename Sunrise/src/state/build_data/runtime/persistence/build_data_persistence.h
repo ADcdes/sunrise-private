@@ -3,17 +3,21 @@
 #include <Windows.h>
 
 #include <array>
+#include <memory>
 
 #include "../../../../core/filesystem/path.h"
 #include "../../../content/content_catalog.h"
 #include "../../abilities/definition.h"
 #include "../../cache/records/domains.h"
+#include "../../collectibles/collectible_catalog.h"
 #include "../../constants/definition.h"
 #include "../../definition.h"
 #include "../../hash_names/definition.h"
 #include "../../inventory/buckets/definition.h"
 #include "../../items/details/definition.h"
 #include "../../items/item_catalog.h"
+#include "../../items/socket_plugs/definition.h"
+#include "../../material_requirements/material_requirement_catalog.h"
 #include "../../progressions/definition.h"
 #include "../../scenarios/definition.h"
 #include "../../socket_entry_lists/definition.h"
@@ -24,22 +28,24 @@ namespace sunrise::state::build_data::runtime::persistence {
 /** Fixed cache paths, identity, and canonical snapshot storage guarded by one State lock. */
 struct Context {
     SRWLOCK lock{SRWLOCK_INIT};
-    std::array<content::Definition, content::kDefinitionCatalogCapacity> namedScratch{};
-    std::array<items::Definition, items::kDefinitionCapacity> itemScratch{};
-    std::array<items::details::Definition, items::details::kDefinitionCapacity> itemDetailScratch{};
-    std::array<inventory::buckets::Descriptor, inventory::buckets::kDescriptorCapacity>
-        inventoryBucketScratch{};
-    std::array<socket_entry_lists::Definition, socket_entry_lists::kDefinitionCapacity>
-        socketEntryListScratch{};
-    std::array<socket_entry_lists::EntryTable, socket_entry_lists::kEntryTableCapacity>
-        socketEntryTableScratch{};
-    std::array<abilities::Definition, abilities::kDefinitionCapacity> abilityBucketScratch{};
-    std::array<progressions::Definition, progressions::kDefinitionCapacity> progressionScratch{};
-    std::array<scenarios::Definition, scenarios::kDefinitionCapacity> scenarioScratch{};
-    std::array<scenarios::RosterGroup, scenarios::kRosterGroupCapacity> rosterGroupScratch{};
-    std::array<spawn_sets::Stem, spawn_sets::kStemCapacity> spawnStemScratch{};
-    std::array<spawn_sets::NameHash, spawn_sets::kNameHashCapacity> spawnNameHashScratch{};
-    std::array<hash_names::Name, hash_names::kNameCapacity> hashNameScratch{};
+    std::unique_ptr<content::Definition[]> namedScratch{};
+    std::unique_ptr<items::Definition[]> itemScratch{};
+    std::unique_ptr<collectibles::Definition[]> collectibleScratch{};
+    std::unique_ptr<material_requirements::Definition[]> materialRequirementSetScratch{};
+    std::unique_ptr<items::details::Definition[]> itemDetailScratch{};
+    std::unique_ptr<items::socket_plugs::Rule[]> socketPlugRuleScratch{};
+    std::unique_ptr<items::socket_plugs::Pool[]> socketPlugPoolScratch{};
+    std::unique_ptr<items::socket_plugs::Member[]> socketPlugMemberScratch{};
+    std::unique_ptr<inventory::buckets::Descriptor[]> inventoryBucketScratch{};
+    std::unique_ptr<socket_entry_lists::Definition[]> socketEntryListScratch{};
+    std::unique_ptr<socket_entry_lists::EntryTable[]> socketEntryTableScratch{};
+    std::unique_ptr<abilities::Definition[]> abilityBucketScratch{};
+    std::unique_ptr<progressions::Definition[]> progressionScratch{};
+    std::unique_ptr<scenarios::Definition[]> scenarioScratch{};
+    std::unique_ptr<scenarios::RosterGroup[]> rosterGroupScratch{};
+    std::unique_ptr<spawn_sets::Stem[]> spawnStemScratch{};
+    std::unique_ptr<spawn_sets::NameHash[]> spawnNameHashScratch{};
+    std::unique_ptr<hash_names::Name[]> hashNameScratch{};
     cache::records::InvestmentConstants constantsScratch{};
     core::path::Buffer cacheDirectory;
     core::path::Buffer cachePath;
