@@ -96,6 +96,25 @@ void apply_material_pairs(const details::Definition& detail,
     }
 }
 
+/** Applies plug-owned gear art and arrangements after the base item. */
+void apply_plug_art(const Equipped& equipped, layout::RenderEntry& entry) noexcept {
+    for (std::size_t lane = 0; lane < equipped.laneCount; ++lane) {
+        details::Definition plug{};
+        if (equipped.plugs[lane] == details::kUnavailableItemIndex
+            || !state::build_data::find_configured_item_detail(equipped.plugs[lane], plug)) {
+            continue;
+        }
+        // Shaders normally carry material rows only. Ornaments carry one or both art indices;
+        // the effective plug therefore replaces only the fields it actually declares.
+        if (plug.gearArtIndex != details::kUnavailableArtIndex) {
+            entry.art[layout::kGearArtSlot] = plug.gearArtIndex;
+        }
+        if (plug.artArrangementIndex != details::kUnavailableArtIndex) {
+            entry.art[layout::kArtArrangementSlot] = plug.artArrangementIndex;
+        }
+    }
+}
+
 } // namespace
 
 /** Resolves one equipped instance to its detail and the plugs its sockets hold. */
@@ -142,6 +161,7 @@ bool apply_render(const family4::loadout::ResolvedInstances& instances,
         // rather than taking art row 0.
         entry.art[layout::kGearArtSlot] = detail.gearArtIndex;
         entry.art[layout::kArtArrangementSlot] = detail.artArrangementIndex;
+        apply_plug_art(equipped, entry);
         apply_material_pairs(detail, equipped, entry);
     }
     return true;
