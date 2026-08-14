@@ -1,6 +1,8 @@
 #include <Windows.h>
 
 #include <algorithm>
+#include <array>
+#include <cstdio>
 
 #include "../../../core/logging/log.h"
 #include "../../../middleware/secure_channel/runtime.h"
@@ -177,6 +179,131 @@ bool consume(Session& session,
             }
             arm_repushes(session, queuezPublication);
             publish_connection_fields(session, publication, connection);
+            if (outcome.hasEquipmentSwap) {
+                std::array<char, core::log::kLineCapacity> line{};
+                const int count = std::snprintf(
+                    line.data(),
+                    line.size(),
+                    "ev=equip stage=output_publish result=ok framed_bytes=%zu queuez_published=%u "
+                    "family_version=%d family0_version=%d family3_version=%d",
+                    framedSize,
+                    static_cast<unsigned>(publishesQueuez),
+                    session.queuez.family4Version,
+                    session.queuez.family0Version,
+                    session.queuez.family3Version);
+                if (count > 0) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::debug,
+                                     {line.data(), static_cast<std::size_t>(count)});
+                }
+            }
+            if (outcome.hasSocketPlug) {
+                std::array<char, core::log::kLineCapacity> line{};
+                const int count = std::snprintf(
+                    line.data(),
+                    line.size(),
+                    "ev=socket_plug stage=output_publish result=ok framed_bytes=%zu "
+                    "queuez_published=%u family_version=%d family0_version=%d "
+                    "family3_version=%d instance=0x%llX lane=%u "
+                    "plug_definition=%u target_bucket=%u plug_bucket=%u",
+                    framedSize,
+                    static_cast<unsigned>(publishesQueuez),
+                    session.queuez.family4Version,
+                    session.queuez.family0Version,
+                    session.queuez.family3Version,
+                    static_cast<unsigned long long>(outcome.socketPlug.targetInstanceSoid),
+                    static_cast<unsigned>(outcome.socketPlug.socketLane),
+                    static_cast<unsigned>(outcome.socketPlug.plugDefinitionIndex),
+                    static_cast<unsigned>(outcome.socketPlug.targetBucketId),
+                    static_cast<unsigned>(outcome.socketPlug.plugBucketId));
+                if (count > 0) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::debug,
+                                     {line.data(), static_cast<std::size_t>(count)});
+                }
+            }
+            if (outcome.hasItemState) {
+                std::array<char, core::log::kLineCapacity> line{};
+                const int count = std::snprintf(
+                    line.data(),
+                    line.size(),
+                    "ev=item_state stage=output_publish result=ok framed_bytes=%zu "
+                    "queuez_published=%u family_version=%d instance=0x%llX flags=0x%X",
+                    framedSize,
+                    static_cast<unsigned>(publishesQueuez),
+                    session.queuez.family4Version,
+                    static_cast<unsigned long long>(outcome.itemState.targetInstanceSoid),
+                    outcome.itemState.afterFlags);
+                if (count > 0) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::debug,
+                                     {line.data(), static_cast<std::size_t>(count)});
+                }
+            }
+            if (outcome.hasItemAcquisition) {
+                std::array<char, core::log::kLineCapacity> line{};
+                const int count = std::snprintf(
+                    line.data(),
+                    line.size(),
+                    "ev=acquire stage=output_publish result=ok framed_bytes=%zu "
+                    "queuez_published=%u family_version=%d residents=%u instance=0x%llX",
+                    framedSize,
+                    static_cast<unsigned>(publishesQueuez),
+                    session.queuez.family4Version,
+                    static_cast<unsigned>(session.queuez.family4ResidentCount),
+                    static_cast<unsigned long long>(
+                        outcome.itemAcquisitionUpdate.acquiredInstanceSoid));
+                if (count > 0) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::debug,
+                                     {line.data(), static_cast<std::size_t>(count)});
+                }
+            }
+            if (outcome.hasProfileItemAcquisition) {
+                std::array<char, core::log::kLineCapacity> line{};
+                const int count = std::snprintf(
+                    line.data(),
+                    line.size(),
+                    "ev=profile_acquire stage=output_publish result=ok framed_bytes=%zu "
+                    "queuez_published=%u family_version=%d residents=%u definition_hash=%u "
+                    "quantity=%d instance=0x%llX action_source=%u appended_row=%u "
+                    "appended_resident=%u",
+                    framedSize,
+                    static_cast<unsigned>(publishesQueuez),
+                    session.queuez.family4Version,
+                    static_cast<unsigned>(session.queuez.family4ResidentCount),
+                    outcome.profileItemAcquisition.acquiredDefinitionHash,
+                    outcome.profileItemAcquisition.acquiredQuantity,
+                    static_cast<unsigned long long>(
+                        outcome.profileItemAcquisition.acquiredInstanceSoid),
+                    static_cast<unsigned>(outcome.profileItemAcquisition.actionSource),
+                    static_cast<unsigned>(outcome.profileItemAcquisition.appended),
+                    static_cast<unsigned>(outcome.profileItemAcquisitionUpdate.appendedResident));
+                if (count > 0) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::debug,
+                                     {line.data(), static_cast<std::size_t>(count)});
+                }
+            }
+            if (outcome.hasItemDismantle) {
+                std::array<char, core::log::kLineCapacity> line{};
+                const int count = std::snprintf(
+                    line.data(),
+                    line.size(),
+                    "ev=dismantle stage=output_publish result=ok framed_bytes=%zu "
+                    "queuez_published=%u family_version=%d residents=%u instance=0x%llX",
+                    framedSize,
+                    static_cast<unsigned>(publishesQueuez),
+                    session.queuez.family4Version,
+                    static_cast<unsigned>(session.queuez.family4ResidentCount),
+                    static_cast<unsigned long long>(
+                        outcome.itemDismantleUpdate.dismantledInstanceSoid));
+                if (count > 0) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::debug,
+                                     {line.data(), static_cast<std::size_t>(count)});
+                }
+            }
         }
     }
     clear_prefix(scratch.plaintext, plaintextSize);

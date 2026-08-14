@@ -116,6 +116,215 @@ bool process(const ServiceRoute& route,
         }
         outcome.hasSubscription = webOutcome.hasSubscription;
         outcome.subscription = webOutcome.subscription;
+        if (webOutcome.hasEquipmentSwap) {
+            // Equip is an optimistic Character-screen action. Its status-pair value is the exact
+            // Family-4 revision whose following Queuez frame makes the action authoritative. Stage
+            // that revision before encoding the reply so the Client cannot complete the action
+            // against the old object store.
+            if (!queuez::stage_equipment_swap(queuezState,
+                                              webOutcome.equipmentSwap.characterSoid,
+                                              outcome.equipmentSwapUpdate)) {
+                core::log::write(core::log::Channel::server,
+                                 core::log::Level::warn,
+                                 "ev=ws403 stage=queuez_preflight result=fail");
+                // Keep the already-encoded sentinel response and publish no mutation, matching
+                // the change-character failure contract instead of dropping the correlated task.
+                outcome.equipmentSwapUpdate = {};
+            } else {
+                middleware::web_service::StatusResponse status{};
+                status.value = outcome.equipmentSwapUpdate.after.family4Version;
+                if (!middleware::web_service::encode_response(
+                        message,
+                        middleware::web_service::ResponseShape::statusPair,
+                        status,
+                        output,
+                        written)) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::warn,
+                                     "ev=ws403 stage=response result=fail");
+                    return false;
+                }
+                web_service::report_equip_response(message, status.value, output.first(written));
+                outcome.hasEquipmentSwap = true;
+                outcome.equipmentSwap = webOutcome.equipmentSwap;
+            }
+        }
+        if (webOutcome.hasSocketPlug) {
+            // Opcode 903 completes at the exact Family-4 revision carrying the changed resident
+            // item instance. The resident manifest and character placement remain unchanged.
+            if (!queuez::stage_socket_plug(queuezState,
+                                           webOutcome.socketPlug.accountSoid,
+                                           webOutcome.socketPlug.characterSoid,
+                                           webOutcome.socketPlug.targetInstanceSoid,
+                                           webOutcome.socketPlug.profileChanged,
+                                           outcome.socketPlugUpdate)) {
+                core::log::write(core::log::Channel::server,
+                                 core::log::Level::warn,
+                                 "ev=socket_plug stage=queuez_preflight result=fail");
+                outcome.socketPlugUpdate = {};
+            } else {
+                middleware::web_service::StatusResponse status{};
+                status.value = outcome.socketPlugUpdate.after.family4Version;
+                if (!middleware::web_service::encode_response(
+                        message,
+                        middleware::web_service::ResponseShape::statusPair,
+                        status,
+                        output,
+                        written)) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::warn,
+                                     "ev=socket_plug stage=response result=fail");
+                    return false;
+                }
+                web_service::report_socket_plug_response(message,
+                                                         status.value,
+                                                         webOutcome.socketPlug.targetInstanceSoid,
+                                                         webOutcome.socketPlug.socketLane,
+                                                         webOutcome.socketPlug.plugDefinitionIndex,
+                                                         output.first(written));
+                outcome.hasSocketPlug = true;
+                outcome.socketPlug = webOutcome.socketPlug;
+            }
+        }
+        if (webOutcome.hasItemState) {
+            // Opcode 406 completes at the exact Family-4 revision carrying the changed inventory
+            // row flags. Placement and every resident item-instance body remain unchanged.
+            if (!queuez::stage_equipment_swap(
+                    queuezState, webOutcome.itemState.characterSoid, outcome.itemStateUpdate)) {
+                core::log::write(core::log::Channel::server,
+                                 core::log::Level::warn,
+                                 "ev=item_state stage=queuez_preflight result=fail");
+                outcome.itemStateUpdate = {};
+            } else {
+                middleware::web_service::StatusResponse status{};
+                status.value = outcome.itemStateUpdate.after.family4Version;
+                if (!middleware::web_service::encode_response(
+                        message,
+                        middleware::web_service::ResponseShape::statusPair,
+                        status,
+                        output,
+                        written)) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::warn,
+                                     "ev=item_state stage=response result=fail");
+                    return false;
+                }
+                outcome.hasItemState = true;
+                outcome.itemState = webOutcome.itemState;
+            }
+        }
+        if (webOutcome.hasItemAcquisition) {
+            // A Collections pull is complete only at the exact Family-4 revision that adds both
+            // the inventory row and its newly resident instance object. Stage that revision before
+            // re-encoding the correlated status pair, just like an equipment swap.
+            if (!queuez::stage_item_acquisition(queuezState,
+                                                webOutcome.itemAcquisition.accountSoid,
+                                                webOutcome.itemAcquisition.characterSoid,
+                                                webOutcome.itemAcquisition.acquiredInstanceSoid,
+                                                webOutcome.itemAcquisition.profileChanged,
+                                                outcome.itemAcquisitionUpdate)) {
+                core::log::write(core::log::Channel::server,
+                                 core::log::Level::warn,
+                                 "ev=acquire stage=queuez_preflight result=fail");
+                outcome.itemAcquisitionUpdate = {};
+            } else {
+                middleware::web_service::StatusResponse status{};
+                status.value = outcome.itemAcquisitionUpdate.after.family4Version;
+                if (!middleware::web_service::encode_response(
+                        message,
+                        middleware::web_service::ResponseShape::statusPair,
+                        status,
+                        output,
+                        written)) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::warn,
+                                     "ev=acquire stage=response result=fail");
+                    return false;
+                }
+                web_service::report_item_acquisition_response(
+                    message,
+                    status.value,
+                    webOutcome.itemAcquisition.acquiredInstanceSoid,
+                    output.first(written));
+                outcome.hasItemAcquisition = true;
+                outcome.itemAcquisition = webOutcome.itemAcquisition;
+            }
+        }
+        if (webOutcome.hasProfileItemAcquisition) {
+            // Profile stacks live in the account body. Actionable shaders/modifications also name
+            // a Family-4 item resident: an existing stack must already own it, while a newly
+            // appended row adds it atomically at this exact +1 revision.
+            if (!queuez::stage_profile_item_acquisition(
+                    queuezState,
+                    webOutcome.profileItemAcquisition.accountSoid,
+                    webOutcome.profileItemAcquisition.acquiredInstanceSoid,
+                    webOutcome.profileItemAcquisition.actionSource,
+                    webOutcome.profileItemAcquisition.appended,
+                    outcome.profileItemAcquisitionUpdate)) {
+                core::log::write(core::log::Channel::server,
+                                 core::log::Level::warn,
+                                 "ev=profile_acquire stage=queuez_preflight result=fail");
+                outcome.profileItemAcquisitionUpdate = {};
+            } else {
+                middleware::web_service::StatusResponse status{};
+                status.value = outcome.profileItemAcquisitionUpdate.after.family4Version;
+                if (!middleware::web_service::encode_response(
+                        message,
+                        middleware::web_service::ResponseShape::statusPair,
+                        status,
+                        output,
+                        written)) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::warn,
+                                     "ev=profile_acquire stage=response result=fail");
+                    return false;
+                }
+                web_service::report_profile_item_acquisition_response(
+                    message,
+                    status.value,
+                    webOutcome.profileItemAcquisition.acquiredDefinitionHash,
+                    webOutcome.profileItemAcquisition.acquiredQuantity,
+                    output.first(written));
+                outcome.hasProfileItemAcquisition = true;
+                outcome.profileItemAcquisition = webOutcome.profileItemAcquisition;
+            }
+        }
+        if (webOutcome.hasItemDismantle) {
+            // Dismantle is another optimistic Character-screen action. Promise only the exact
+            // Family-4 revision that carries both the character after-image and the empty
+            // item-instance release descriptor; otherwise retain the generic sentinel reply and
+            // publish no removal.
+            if (!queuez::stage_item_dismantle(queuezState,
+                                              webOutcome.itemDismantle.characterSoid,
+                                              webOutcome.itemDismantle.dismantledInstanceSoid,
+                                              outcome.itemDismantleUpdate)) {
+                core::log::write(core::log::Channel::server,
+                                 core::log::Level::warn,
+                                 "ev=dismantle stage=queuez_preflight result=fail");
+                outcome.itemDismantleUpdate = {};
+            } else {
+                middleware::web_service::StatusResponse status{};
+                status.value = outcome.itemDismantleUpdate.after.family4Version;
+                if (!middleware::web_service::encode_response(
+                        message,
+                        middleware::web_service::ResponseShape::statusPair,
+                        status,
+                        output,
+                        written)) {
+                    core::log::write(core::log::Channel::server,
+                                     core::log::Level::warn,
+                                     "ev=dismantle stage=response result=fail");
+                    return false;
+                }
+                web_service::report_item_dismantle_response(
+                    message,
+                    status.value,
+                    webOutcome.itemDismantle.dismantledInstanceSoid,
+                    output.first(written));
+                outcome.hasItemDismantle = true;
+                outcome.itemDismantle = webOutcome.itemDismantle;
+            }
+        }
         // A pick that names the resident character moves nothing, so staging refuses it and the
         // reply still stands on its own.
         if (webOutcome.hasSelectedCharacter

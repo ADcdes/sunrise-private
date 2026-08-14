@@ -1,7 +1,9 @@
 #include "service_outcome_commit.h"
 
+#include "../../../../core/logging/log.h"
 #include "../../../../state/activity/runtime.h"
 #include "../../../../state/matchmaking/matchmaking_state.h"
+#include "../../../../state/runtime/runtime.h"
 #include "../internal.h"
 
 namespace sunrise::server::bap::encrypted::transactions {
@@ -16,7 +18,13 @@ bool commit(ServiceOutcome& outcome, Publication& publication) noexcept {
     publication = {};
     const unsigned mutationCount = static_cast<unsigned>(outcome.hasActivitySessionAllocation)
                                    + static_cast<unsigned>(outcome.hasActivityTransaction)
-                                   + static_cast<unsigned>(outcome.hasMatchmakingMutation);
+                                   + static_cast<unsigned>(outcome.hasMatchmakingMutation)
+                                   + static_cast<unsigned>(outcome.hasEquipmentSwap)
+                                   + static_cast<unsigned>(outcome.hasSocketPlug)
+                                   + static_cast<unsigned>(outcome.hasItemState)
+                                   + static_cast<unsigned>(outcome.hasItemAcquisition)
+                                   + static_cast<unsigned>(outcome.hasProfileItemAcquisition)
+                                   + static_cast<unsigned>(outcome.hasItemDismantle);
     // A service route may never combine independently versioned State transactions.
     if (mutationCount > 1U) {
         return false;
@@ -43,6 +51,55 @@ bool commit(ServiceOutcome& outcome, Publication& publication) noexcept {
     }
     if (outcome.hasMatchmakingMutation) {
         return state::matchmaking::commit(outcome.matchmakingMutation);
+    }
+    if (outcome.hasEquipmentSwap) {
+        const bool committed = state::commit_equipment_swap(outcome.equipmentSwap);
+        core::log::write(core::log::Channel::server,
+                         committed ? core::log::Level::debug : core::log::Level::warn,
+                         committed ? "ev=equip stage=transaction_commit result=ok"
+                                   : "ev=equip stage=transaction_commit result=fail");
+        return committed;
+    }
+    if (outcome.hasItemAcquisition) {
+        const bool committed = state::commit_item_acquisition(outcome.itemAcquisition);
+        core::log::write(core::log::Channel::server,
+                         committed ? core::log::Level::debug : core::log::Level::warn,
+                         committed ? "ev=acquire stage=transaction_commit result=ok"
+                                   : "ev=acquire stage=transaction_commit result=fail");
+        return committed;
+    }
+    if (outcome.hasSocketPlug) {
+        const bool committed = state::commit_socket_plug(outcome.socketPlug);
+        core::log::write(core::log::Channel::server,
+                         committed ? core::log::Level::debug : core::log::Level::warn,
+                         committed ? "ev=socket_plug stage=transaction_commit result=ok"
+                                   : "ev=socket_plug stage=transaction_commit result=fail");
+        return committed;
+    }
+    if (outcome.hasItemState) {
+        const bool committed = state::commit_item_state(outcome.itemState);
+        core::log::write(core::log::Channel::server,
+                         committed ? core::log::Level::debug : core::log::Level::warn,
+                         committed ? "ev=item_state stage=transaction_commit result=ok"
+                                   : "ev=item_state stage=transaction_commit result=fail");
+        return committed;
+    }
+    if (outcome.hasProfileItemAcquisition) {
+        const bool committed =
+            state::commit_profile_item_acquisition(outcome.profileItemAcquisition);
+        core::log::write(core::log::Channel::server,
+                         committed ? core::log::Level::debug : core::log::Level::warn,
+                         committed ? "ev=profile_acquire stage=transaction_commit result=ok"
+                                   : "ev=profile_acquire stage=transaction_commit result=fail");
+        return committed;
+    }
+    if (outcome.hasItemDismantle) {
+        const bool committed = state::commit_item_dismantle(outcome.itemDismantle);
+        core::log::write(core::log::Channel::server,
+                         committed ? core::log::Level::debug : core::log::Level::warn,
+                         committed ? "ev=dismantle stage=transaction_commit result=ok"
+                                   : "ev=dismantle stage=transaction_commit result=fail");
+        return committed;
     }
     return true;
 }
