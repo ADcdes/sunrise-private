@@ -125,6 +125,8 @@
     <ClCompile Include="src\client\hooks\cursor\cursor_hook_lifecycle.cpp" />
     <ClCompile Include="src\client\hooks\graphics\renderer\graphics_renderer_device.cpp" />
     <ClCompile Include="src\middleware\web_service\messages\opcode504_codec.cpp" />
+    <ClCompile Include="src\middleware\web_service\messages\opcode903_codec.cpp" />
+    <ClCompile Include="src\middleware\web_service\messages\opcode1901_codec.cpp" />
     <ClCompile Include="src\state\runtime\state_account_runtime.cpp" />
     <ClCompile Include="src\core\ui\busy\ui_busy_overlay.cpp" />
     <ClCompile Include="src\core\ui\busy\ui_busy_state.cpp" />
@@ -164,6 +166,7 @@
     <ClCompile Include="src\client\hooks\banner\banner_hook_lifecycle.cpp" />
     <ClCompile Include="src\middleware\datagen\family4\loadout\subclass_socket_selection.cpp" />
     <ClCompile Include="src\state\build_data\cache\records\cache_socket_record_codec.cpp" />
+    <ClCompile Include="src\state\build_data\cache\records\cache_socket_plug_record_codec.cpp" />
     <ClCompile Include="src\client\hooks\graphics\renderer\selection\graphics_swap_chain_selection.cpp" />
     <ClCompile Include="src\client\hooks\graphics\renderer\graphics_renderer_lifecycle.cpp" />
     <ClCompile Include="src\client\hooks\graphics\renderer\graphics_renderer_frame.cpp" />
@@ -404,7 +407,13 @@
     <ClCompile Include="src\state\build_data\cache\write\cache_payload_writer.cpp" />
     <ClCompile Include="src\state\build_data\items\item_catalog.cpp" />
     <ClCompile Include="src\state\build_data\items\item_build_data_runtime.cpp" />
+    <ClCompile Include="src\state\build_data\collectibles\collectible_catalog.cpp" />
+    <ClCompile Include="src\state\build_data\collectibles\collectible_build_data_runtime.cpp" />
+    <ClCompile Include="src\state\build_data\material_requirements\material_requirement_catalog.cpp" />
+    <ClCompile Include="src\state\build_data\material_requirements\material_requirement_build_data_runtime.cpp" />
     <ClCompile Include="src\state\build_data\items\details\item_detail_catalog.cpp" />
+    <ClCompile Include="src\state\build_data\items\socket_plugs\socket_plug_catalog.cpp" />
+    <ClCompile Include="src\state\build_data\items\socket_plugs\socket_plug_build_data_runtime.cpp" />
     <ClCompile Include="src\state\build_data\constants\investment_constant_catalog.cpp" />
     <ClCompile Include="src\state\build_data\abilities\ability_bucket_catalog.cpp" />
     <ClCompile Include="src\state\build_data\progressions\progression_catalog.cpp" />
@@ -559,7 +568,10 @@
     <ClCompile Include="src\middleware\content\packages\tables\item_appearance_reader.cpp" />
     <ClCompile Include="src\middleware\content\packages\tables\ability_pool_reader.cpp" />
     <ClCompile Include="src\client\content\items\packages\package_item_build.cpp" />
+    <ClCompile Include="src\client\content\items\packages\package_collectible_build.cpp" />
+    <ClCompile Include="src\client\content\items\packages\package_material_requirement_build.cpp" />
     <ClCompile Include="src\client\content\items\packages\package_detail_build.cpp" />
+    <ClCompile Include="src\client\content\items\packages\package_socket_plug_build.cpp" />
     <ClCompile Include="src\client\content\items\packages\package_ability_build.cpp" />
     <ClCompile Include="src\client\content\items\packages\package_subclass_build.cpp" />
     <ClCompile Include="src\client\content\items\packages\package_progression_build.cpp" />
@@ -641,6 +653,8 @@
     <ClInclude Include="src\client\hooks\banner\banner_bind.h" />
     <ClInclude Include="src\client\hooks\banner\banner_hook_lifecycle.h" />
     <ClInclude Include="src\middleware\web_service\messages\opcode504.h" />
+    <ClInclude Include="src\middleware\web_service\messages\opcode903.h" />
+    <ClInclude Include="src\middleware\web_service\messages\opcode1901.h" />
     <ClInclude Include="src\core\ui\busy\busy.h" />
     <ClInclude Include="src\core\ui\busy\ui_busy_state.h" />
     <ClInclude Include="src\core\ui\notice\ui_notice_overlay.h" />
@@ -826,8 +840,13 @@
     <ClInclude Include="src\state\build_data\cache\write\temporary\temporary_cache_file.h" />
     <ClInclude Include="src\state\build_data\cache\write\validation\cache_file_comparison.h" />
     <ClInclude Include="src\state\build_data\items\item_catalog.h" />
+    <ClInclude Include="src\state\build_data\collectibles\collectible_catalog.h" />
+    <ClInclude Include="src\state\build_data\material_requirements\material_requirement_catalog.h" />
     <ClInclude Include="src\state\build_data\items\details\definition.h" />
     <ClInclude Include="src\state\build_data\items\details\item_detail_catalog.h" />
+    <ClInclude Include="src\state\build_data\items\socket_plugs\definition.h" />
+    <ClInclude Include="src\state\build_data\items\socket_plugs\socket_plug_catalog.h" />
+    <ClInclude Include="src\client\content\items\packages\package_socket_plug_build.h" />
     <ClInclude Include="src\state\build_data\inventory\buckets\definition.h" />
     <ClInclude Include="src\state\build_data\inventory\buckets\inventory_bucket_catalog.h" />
     <ClInclude Include="src\state\build_data\socket_entry_lists\definition.h" />
