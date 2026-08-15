@@ -181,8 +181,10 @@ namespace sunrise::server::bap::encrypted::queuez {
  * when both schemas and both named residents exist exactly once.
  */
 [[nodiscard]] bool stage_item_dismantle(const SessionState& before,
+                                        std::uint64_t accountSoid,
                                         std::uint64_t characterSoid,
                                         std::uint64_t dismantledInstanceSoid,
+                                        bool updatesAccount,
                                         ItemDismantle& dismantle) noexcept;
 
 /** Clears state for the active root. Zero or another root leaves the state unchanged. */

@@ -477,16 +477,22 @@ bool stage_profile_item_acquisition(const SessionState& before,
 
 /** Stages the character upsert and resident release required by one item dismantle. */
 bool stage_item_dismantle(const SessionState& before,
+                          std::uint64_t accountSoid,
                           std::uint64_t characterSoid,
                           std::uint64_t dismantledInstanceSoid,
+                          bool updatesAccount,
                           ItemDismantle& dismantle) noexcept {
     dismantle = {};
+    std::uint32_t accountDefinitionId = 0;
     std::uint32_t characterDefinitionId = 0;
     std::uint32_t itemInstanceDefinitionId = 0;
-    if (!valid(before) || !before.family4Active || before.family4RootSoid == 0 || characterSoid == 0
+    if (!valid(before) || !before.family4Active || before.family4RootSoid == 0 || accountSoid == 0
+        || accountSoid != before.family4RootSoid || characterSoid == 0
         || dismantledInstanceSoid == 0 || before.family4ResidentCount == 0
         || before.family4ResidentCount > before.family4Residents.size()
         || before.family4Version == (std::numeric_limits<std::int32_t>::max)()
+        || !middleware::datagen::object_id(
+            kAccountFamilyType, middleware::datagen::kAccountSlot, accountDefinitionId)
         || !middleware::datagen::object_id(
             kAccountFamilyType, middleware::datagen::kCharacterSlot, characterDefinitionId)
         || !middleware::datagen::object_id(
@@ -494,10 +500,14 @@ bool stage_item_dismantle(const SessionState& before,
         return false;
     }
 
+    bool accountResident = false;
     bool characterResident = false;
     std::size_t dismantledResidentIndex = before.family4Residents.size();
     for (std::size_t index = 0; index < before.family4ResidentCount; ++index) {
         const ResidentObject& object = before.family4Residents[index];
+        accountResident =
+            accountResident
+            || (object.definitionId == accountDefinitionId && object.objectSoid == accountSoid);
         characterResident =
             characterResident
             || (object.definitionId == characterDefinitionId && object.objectSoid == characterSoid);
@@ -510,7 +520,8 @@ bool stage_item_dismantle(const SessionState& before,
         }
         dismantledResidentIndex = index;
     }
-    if (!characterResident || dismantledResidentIndex >= before.family4ResidentCount) {
+    if (!accountResident || !characterResident
+        || dismantledResidentIndex >= before.family4ResidentCount) {
         return false;
     }
 
@@ -522,10 +533,13 @@ bool stage_item_dismantle(const SessionState& before,
     }
     --dismantle.after.family4ResidentCount;
     dismantle.after.family4Residents[dismantle.after.family4ResidentCount] = {};
+    dismantle.accountDefinitionId = accountDefinitionId;
     dismantle.characterDefinitionId = characterDefinitionId;
     dismantle.itemInstanceDefinitionId = itemInstanceDefinitionId;
+    dismantle.accountSoid = accountSoid;
     dismantle.characterSoid = characterSoid;
     dismantle.dismantledInstanceSoid = dismantledInstanceSoid;
+    dismantle.updatesAccount = updatesAccount;
     const bool staged = valid(dismantle.after);
 
     std::array<char, core::log::kLineCapacity> line{};
@@ -534,7 +548,8 @@ bool stage_item_dismantle(const SessionState& before,
                       line.size(),
                       "ev=dismantle stage=queuez_version result=%s root=0x%llX before=%d after=%d "
                       "residents_before=%u residents_after=%u resident_index=%zu character=0x%llX "
-                      "instance=0x%llX character_definition=%u item_definition=%u",
+                      "instance=0x%llX account_definition=%u character_definition=%u "
+                      "item_definition=%u account_update=%u",
                       staged ? "ok" : "fail",
                       static_cast<unsigned long long>(before.family4RootSoid),
                       before.family4Version,
@@ -544,8 +559,10 @@ bool stage_item_dismantle(const SessionState& before,
                       dismantledResidentIndex,
                       static_cast<unsigned long long>(characterSoid),
                       static_cast<unsigned long long>(dismantledInstanceSoid),
+                      accountDefinitionId,
                       characterDefinitionId,
-                      itemInstanceDefinitionId);
+                      itemInstanceDefinitionId,
+                      static_cast<unsigned>(updatesAccount));
     if (count > 0) {
         core::log::write(core::log::Channel::server,
                          staged ? core::log::Level::debug : core::log::Level::warn,

@@ -323,8 +323,13 @@ bool stage_service_outcome(Scratch& scratch,
                             && afterIndex == dismantle.after.family4ResidentCount;
 
         if (!valid(dismantle.after) || !compactedManifest
+            || dismantle.accountSoid != outcome.itemDismantle.accountSoid
             || dismantle.characterSoid != outcome.itemDismantle.characterSoid
             || dismantle.dismantledInstanceSoid != outcome.itemDismantle.dismantledInstanceSoid
+            || dismantle.updatesAccount != outcome.itemDismantle.profileChanged
+            || dismantle.accountSoid != before.family4RootSoid
+            || before.family4ResidentCount == 0
+            || dismantle.accountDefinitionId != before.family4Residents.front().definitionId
             || dismantle.after.family4RootSoid != before.family4RootSoid
             || before.family4Version == (std::numeric_limits<std::int32_t>::max)()
             || dismantle.after.family4Version != before.family4Version + 1

@@ -295,8 +295,10 @@ bool process(const ServiceRoute& route,
             // item-instance release descriptor; otherwise retain the generic sentinel reply and
             // publish no removal.
             if (!queuez::stage_item_dismantle(queuezState,
+                                              webOutcome.itemDismantle.accountSoid,
                                               webOutcome.itemDismantle.characterSoid,
                                               webOutcome.itemDismantle.dismantledInstanceSoid,
+                                              webOutcome.itemDismantle.profileChanged,
                                               outcome.itemDismantleUpdate)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,

@@ -158,10 +158,14 @@ struct ProfileItemAcquisition {
 /** Validated item-dismantle after-image for one character upsert and one instance release. */
 struct ItemDismantle {
     SessionState after{};
+    std::uint32_t accountDefinitionId{};
     std::uint32_t characterDefinitionId{};
     std::uint32_t itemInstanceDefinitionId{};
+    std::uint64_t accountSoid{};
     std::uint64_t characterSoid{};
     std::uint64_t dismantledInstanceSoid{};
+    /** True when the same revision also publishes credited profile materials. */
+    bool updatesAccount{};
 };
 
 /** Queuez fields published after every staged frame is copied to caller output. */

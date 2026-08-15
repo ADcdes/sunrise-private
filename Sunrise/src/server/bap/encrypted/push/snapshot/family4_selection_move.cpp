@@ -930,7 +930,7 @@ bool prepare_item_acquisition(Scratch& scratch,
     return true;
 }
 
-/** Builds a character upsert followed by one empty item-instance release descriptor. */
+/** Builds character removal, instance release, and any profile-reward pickup descriptors. */
 bool prepare_item_dismantle(Scratch& scratch,
                             const queuez::ItemDismantle& dismantle,
                             const state::PendingItemDismantle& mutation,
@@ -941,16 +941,23 @@ bool prepare_item_dismantle(Scratch& scratch,
         return report_failure("dismantle_reservation");
     }
 
-    state::AccountState account = state::account_snapshot();
+    state::AccountState account{};
     if (!mutation.prepared || mutation.characterSoid == 0 || mutation.dismantledInstanceSoid == 0
         || mutation.dismantledItem.instanceSoid != mutation.dismantledInstanceSoid
+        || mutation.accountSoid != dismantle.accountSoid
         || mutation.characterSoid != dismantle.characterSoid
         || mutation.dismantledInstanceSoid != dismantle.dismantledInstanceSoid
+        || mutation.profileChanged != dismantle.updatesAccount
+        || mutation.rewardCount > state::kDismantleRewardCapacity
+        || mutation.profileChanged != (mutation.rewardCount != 0)
+        || dismantle.accountDefinitionId == 0 || dismantle.characterDefinitionId == 0
+        || dismantle.itemInstanceDefinitionId == 0
+        || !state::preview_item_dismantle(mutation, account)
         || mutation.characterIndex >= account.characterCount
+        || account.primarySoid != dismantle.accountSoid
         || account.characters[mutation.characterIndex].soid != mutation.characterSoid) {
         return report_failure("dismantle_mutation");
     }
-    account.characters[mutation.characterIndex] = mutation.afterCharacter;
 
     Resolved selected{};
     const std::optional<std::size_t> selectedIndex = find_character_index(account);
@@ -1001,13 +1008,91 @@ bool prepare_item_dismantle(Scratch& scratch,
         middleware::queuez::Encoding::oodle,
         {},
     };
+
+    std::size_t objectCount = 2;
+    if (dismantle.updatesAccount) {
+        if (family4_datagen::account::layout::kObjectSize > rawStorage.size()) {
+            clear_after(scratch, reservation);
+            return report_failure("dismantle_account_storage");
+        }
+        const auto accountBytes = rawStorage.first(family4_datagen::account::layout::kObjectSize);
+        if (!family4_datagen::account::encode(account, accountBytes)) {
+            clear_after(scratch, reservation);
+            return report_failure("dismantle_account_encode");
+        }
+
+        auto& accountObject =
+            *reinterpret_cast<family4_datagen::account::layout::Object*>(accountBytes.data());
+        const auto recordIsZero =
+            [](const family4_datagen::account::layout::ProfileInventoryChangeRecord& record)
+            noexcept {
+                return record.sequence == 0 && record.reserved == 0
+                       && record.mutationSerial == 0 && record.kind == 0
+                       && record.reservedKind == 0 && record.flags == 0;
+            };
+        if (accountObject.profileInventoryChanges.writeSlot != 0
+            || accountObject.profileInventoryChanges.nextSequence != 0
+            || !std::all_of(accountObject.profileInventoryChanges.records.cbegin(),
+                            accountObject.profileInventoryChanges.records.cend(),
+                            recordIsZero)
+            || mutation.rewardCount == 0
+            || mutation.rewardCount
+                   > accountObject.profileInventoryChanges.records.size()) {
+            clear_after(scratch, reservation);
+            return report_failure("dismantle_account_change_state");
+        }
+
+        constexpr std::uint8_t kRewardChangeKind = 1;
+        constexpr std::uint16_t kRewardChangeFlags = 0;
+        for (std::size_t rewardIndex = 0; rewardIndex < mutation.rewardCount; ++rewardIndex) {
+            const state::DismantleReward& reward = mutation.rewards[rewardIndex];
+            std::size_t matchedRows = 0;
+            for (const auto& row : accountObject.profileItems) {
+                if (row.mutationSerial != reward.mutationSerial) {
+                    continue;
+                }
+                if (row.quantity != reward.afterQuantity) {
+                    clear_after(scratch, reservation);
+                    return report_failure("dismantle_reward_quantity");
+                }
+                ++matchedRows;
+            }
+            if (matchedRows != 1) {
+                clear_after(scratch, reservation);
+                return report_failure("dismantle_reward_row");
+            }
+            auto& change = accountObject.profileInventoryChanges.records[rewardIndex];
+            change.sequence = static_cast<std::uint16_t>(rewardIndex);
+            change.mutationSerial = reward.mutationSerial;
+            change.kind = kRewardChangeKind;
+            change.flags = kRewardChangeFlags;
+        }
+        accountObject.profileInventoryChanges.writeSlot =
+            static_cast<std::uint16_t>(mutation.rewardCount);
+        accountObject.profileInventoryChanges.nextSequence =
+            static_cast<std::uint16_t>(mutation.rewardCount);
+
+        if (!append_object(scratch,
+                           accountBytes,
+                           dismantle.accountDefinitionId,
+                           dismantle.accountSoid,
+                           staged.objects[2],
+                           compressedExtent)) {
+            clear_after(scratch, reservation);
+            return report_failure("dismantle_account_object");
+        }
+        staged.rawClearSize =
+            (std::max)(staged.rawClearSize,
+                       reservation.rawWriteOffset + family4_datagen::account::layout::kObjectSize);
+        objectCount = 3;
+    }
     staged.compressedClearSize = (std::max)(reservation.compressedClearSize, compressedExtent);
     staged.family = middleware::queuez::Family{
         kAccountFamilyType,
         dismantle.after.family4RootSoid,
         dismantle.after.family4Version,
         0,
-        std::span(staged.objects).first(2),
+        std::span(staged.objects).first(objectCount),
     };
     if (!commit(staged, prepared)) {
         clear_after(scratch, reservation);
@@ -1021,7 +1106,8 @@ bool prepare_item_dismantle(Scratch& scratch,
                       "ev=dismantle stage=family4_objects result=ok family_version=%d root=0x%llX "
                       "character=0x%llX character_definition=%u instance=0x%llX item_definition=%u "
                       "definition_hash=%u inventory_index=%zu inventory_row=%u equipment_slot=%u "
-                      "moved_items=%zu items_after=%zu next_serial=%u",
+                      "moved_items=%zu items_after=%zu next_serial=%u rewards=%zu objects=%zu "
+                      "order=%s",
                       dismantle.after.family4Version,
                       static_cast<unsigned long long>(dismantle.after.family4RootSoid),
                       static_cast<unsigned long long>(dismantle.characterSoid),
@@ -1034,7 +1120,11 @@ bool prepare_item_dismantle(Scratch& scratch,
                       static_cast<unsigned>(mutation.equipmentSlot),
                       mutation.movedInventoryItemCount,
                       mutation.afterCharacter.inventory.count,
-                      mutation.afterCharacter.nextInventorySerial);
+                      mutation.afterCharacter.nextInventorySerial,
+                      mutation.rewardCount,
+                      objectCount,
+                      dismantle.updatesAccount ? "character_release_account"
+                                               : "character_release");
     if (count > 0) {
         core::log::write(core::log::Channel::server,
                          core::log::Level::debug,

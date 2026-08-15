@@ -98,21 +98,44 @@ struct PendingProfileItemAcquisition {
     bool prepared{};
 };
 
+/** One profile material actually credited by a prepared dismantle. */
+struct DismantleReward {
+    std::uint32_t definitionHash{};
+    std::size_t profileIndex{};
+    std::int32_t quantity{};
+    std::int32_t afterQuantity{};
+    std::int32_t mutationSerial{};
+};
+
+/** Dismantles currently publish the ordinary gear material pair in one native pickup bank. */
+inline constexpr std::size_t kDismantleRewardCapacity = 2;
+
 /** Prepared selected-character inventory removal kept private until its reply and push fit. */
 struct PendingItemDismantle {
     /** Exact prepare-time character view used as the commit staleness guard. */
     CharacterState beforeCharacter{};
     /** Canonical dense inventory after-image, including row-change mutation generations. */
     CharacterState afterCharacter{};
+    /** Exact profile material view observed before and after applying the dismantle payout. */
+    std::array<account::inventory::ProfileItem, account::inventory::kProfileItemCapacity>
+        beforeProfileItems{};
+    std::array<account::inventory::ProfileItem, account::inventory::kProfileItemCapacity>
+        afterProfileItems{};
+    std::array<DismantleReward, kDismantleRewardCapacity> rewards{};
     account::inventory::Item dismantledItem{};
+    std::uint64_t accountSoid{};
     std::uint64_t characterSoid{};
     std::uint64_t dismantledInstanceSoid{};
     std::size_t characterIndex{};
     std::size_t expectedInventoryCount{};
+    std::size_t expectedProfileItemCount{};
+    std::size_t afterProfileItemCount{};
     std::size_t inventoryIndex{};
     std::size_t movedInventoryItemCount{};
+    std::size_t rewardCount{};
     std::uint16_t inventoryRow{};
     std::uint8_t equipmentSlot{};
+    bool profileChanged{};
     bool prepared{};
 };
 
@@ -332,6 +355,10 @@ commit_profile_item_acquisition(PendingProfileItemAcquisition& mutation) noexcep
  */
 [[nodiscard]] bool prepare_item_dismantle(std::uint64_t instanceSoid,
                                           PendingItemDismantle& mutation) noexcept;
+
+/** Builds the exact account after-image while a prepared dismantle remains current. */
+[[nodiscard]] bool preview_item_dismantle(const PendingItemDismantle& mutation,
+                                          AccountState& after) noexcept;
 
 /**
  * Commits a prepared inventory removal only while the complete prepare-time character view is

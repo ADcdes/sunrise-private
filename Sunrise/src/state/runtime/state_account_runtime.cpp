@@ -27,6 +27,26 @@ namespace family4_loadout = middleware::datagen::family4::loadout;
 /** First SOID reserved for item instances created by this local runtime. */
 constexpr std::uint64_t kFirstGeneratedItemSoid = 0x4000000000000001ULL;
 
+/** Historical profile definitions returned by ordinary gear dismantles. */
+constexpr std::uint32_t kLegendaryShardsDefinitionHash = 0x3CF2E8E2U;
+constexpr std::uint32_t kGunsmithMaterialsDefinitionHash = 0x28D6AC07U;
+/** Base gear payout for the supported pre-Beyond-Light client. */
+constexpr std::int32_t kLegendaryShardDismantleQuantity = 4;
+constexpr std::int32_t kGunsmithMaterialDismantleQuantity = 3;
+/** Equipment slots 0-2 are weapons and 3-7 are class-specific armor. */
+constexpr std::uint8_t kGearEquipmentSlotCount = 8;
+
+struct DismantleRewardPolicy {
+    std::uint32_t definitionHash{};
+    std::int32_t quantity{};
+};
+
+constexpr std::array<DismantleRewardPolicy, kDismantleRewardCapacity>
+    kGearDismantleRewards{{
+        {kLegendaryShardsDefinitionHash, kLegendaryShardDismantleQuantity},
+        {kGunsmithMaterialsDefinitionHash, kGunsmithMaterialDismantleQuantity},
+    }};
+
 /** Writes one exhaustive equipment-transaction checkpoint to the persistent diagnostic log. */
 void report_equipment(std::string_view stage,
                       std::string_view result,
@@ -168,6 +188,25 @@ same_profile_inventory(const AccountState& account,
     }
     for (std::size_t index = 0; index < account.profileItems.size(); ++index) {
         if (!same_profile_item(account.profileItems[index], expected[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** @return True when two fixed profile views, including their empty tails, are identical. */
+[[nodiscard]] bool same_profile_views(
+    const std::array<authored_inventory::ProfileItem,
+                     authored_inventory::kProfileItemCapacity>& left,
+    std::size_t leftCount,
+    const std::array<authored_inventory::ProfileItem,
+                     authored_inventory::kProfileItemCapacity>& right,
+    std::size_t rightCount) noexcept {
+    if (leftCount != rightCount) {
+        return false;
+    }
+    for (std::size_t index = 0; index < left.size(); ++index) {
+        if (!same_profile_item(left[index], right[index])) {
             return false;
         }
     }
@@ -1494,6 +1533,108 @@ character_item_at(CharacterState& character, const CharacterItemLocation& locati
 }
 
 /**
+ * Credits the supported client's ordinary weapon/armor dismantle payout.
+ *
+ * Capped stacks lose only the overflowing part, matching normal profile-inventory behavior.
+ * Every credited row receives a new mutation serial so the account observer can display it.
+ */
+[[nodiscard]] bool apply_dismantle_rewards(
+    const AccountState& before,
+    std::uint8_t equipmentSlot,
+    AccountState& after,
+    std::array<DismantleReward, kDismantleRewardCapacity>& rewards,
+    std::size_t& rewardCount) noexcept {
+    after = before;
+    rewards = {};
+    rewardCount = 0;
+    if (!valid_profile_inventory(before)) {
+        return false;
+    }
+    if (equipmentSlot >= kGearEquipmentSlotCount) {
+        return true;
+    }
+
+    std::int32_t greatestMutationSerial = 0;
+    for (std::size_t index = 0; index < before.profileItemCount; ++index) {
+        greatestMutationSerial =
+            (std::max)(greatestMutationSerial, before.profileItems[index].mutationSerial);
+    }
+
+    for (const DismantleRewardPolicy& policy : kGearDismantleRewards) {
+        build_data::items::Definition definition{};
+        item_details::Definition detail{};
+        inventory_buckets::Descriptor bucket{};
+        if (policy.definitionHash == authored_inventory::kNoDefinitionHash || policy.quantity <= 0
+            || !build_data::find_item_definition_hash(policy.definitionHash, definition)
+            || definition.definitionHash != policy.definitionHash
+            || !build_data::find_configured_item_detail(definition.definitionIndex, detail)
+            || detail.definitionIndex != definition.definitionIndex
+            || detail.definitionHash != definition.definitionHash
+            || detail.bucketId != definition.bucketId
+            || detail.instancedDefinitionState != item_details::InstancedDefinitionState::stackable
+            || detail.maxStackSize <= 0
+            || !build_data::find_inventory_bucket_descriptor(detail.bucketId, bucket)
+            || bucket.arraySelector != inventory_buckets::ArraySelector::profile
+            || build_data::is_profile_action_source(definition.definitionIndex,
+                                                    definition.bucketId)) {
+            return false;
+        }
+
+        std::size_t profileIndex = after.profileItemCount;
+        for (std::size_t index = 0; index < after.profileItemCount; ++index) {
+            const authored_inventory::ProfileItem& item = after.profileItems[index];
+            if (item.definitionHash != policy.definitionHash) {
+                continue;
+            }
+            if (item.instanceSoid != 0 || item.quantity <= 0
+                || item.quantity > detail.maxStackSize) {
+                return false;
+            }
+            if (profileIndex == after.profileItemCount && item.quantity < detail.maxStackSize) {
+                profileIndex = index;
+            }
+        }
+
+        const bool appended = profileIndex == after.profileItemCount;
+        if ((appended && after.profileItemCount >= after.profileItems.size())
+            || greatestMutationSerial == (std::numeric_limits<std::int32_t>::max)()) {
+            continue;
+        }
+        const std::int32_t previousQuantity =
+            appended ? 0 : after.profileItems[profileIndex].quantity;
+        const std::int32_t available = detail.maxStackSize - previousQuantity;
+        const std::int32_t credited = (std::min)(policy.quantity, available);
+        if (credited <= 0) {
+            continue;
+        }
+
+        AccountState candidate = after;
+        const std::int32_t mutationSerial = greatestMutationSerial + 1;
+        const std::int32_t afterQuantity = previousQuantity + credited;
+        if (appended) {
+            candidate.profileItems[profileIndex] = {
+                0, policy.definitionHash, afterQuantity, mutationSerial};
+            ++candidate.profileItemCount;
+        } else {
+            candidate.profileItems[profileIndex].quantity = afterQuantity;
+            candidate.profileItems[profileIndex].mutationSerial = mutationSerial;
+        }
+        // A full native bucket drops this reward, but never blocks deletion of the source item.
+        if (!account::valid(candidate) || !valid_profile_inventory(candidate)) {
+            continue;
+        }
+        if (rewardCount >= rewards.size()) {
+            return false;
+        }
+        after = candidate;
+        greatestMutationSerial = mutationSerial;
+        rewards[rewardCount++] = {
+            policy.definitionHash, profileIndex, credited, afterQuantity, mutationSerial};
+    }
+    return account::valid(after) && valid_profile_inventory(after);
+}
+
+/**
  * Builds the one canonical dismantle transition for an exact account snapshot.
  *
  * Surviving authored entries keep their mutation generation unless installed row placement moves
@@ -1609,19 +1750,172 @@ character_item_at(CharacterState& character, const CharacterItemLocation& locati
         }
     }
 
+    build_data::items::Definition dismantledDefinition{};
+    item_details::Definition dismantledDetail{};
+    if (!build_data::find_item_definition_hash(dismantledItem.definitionHash,
+                                               dismantledDefinition)
+        || dismantledDefinition.definitionHash != dismantledItem.definitionHash
+        || !build_data::find_configured_item_detail(dismantledDefinition.definitionIndex,
+                                                    dismantledDetail)
+        || dismantledDetail.definitionIndex != dismantledDefinition.definitionIndex
+        || dismantledDetail.definitionHash != dismantledDefinition.definitionHash
+        || dismantledDetail.bucketId != dismantledDefinition.bucketId
+        || dismantledDetail.instancedDefinitionState
+               != item_details::InstancedDefinitionState::instanced
+        || !dismantledDetail.equipmentSlot.has_value()
+        || static_cast<std::uint8_t>(*dismantledDetail.equipmentSlot) != dismantledSlot) {
+        return false;
+    }
+
+    AccountState rewarded{};
+    std::array<DismantleReward, kDismantleRewardCapacity> rewards{};
+    std::size_t rewardCount = 0;
+    if (!apply_dismantle_rewards(candidate, dismantledSlot, rewarded, rewards, rewardCount)) {
+        return false;
+    }
+    candidate = rewarded;
+
     mutation.beforeCharacter = before;
     mutation.afterCharacter = after;
+    mutation.beforeProfileItems = account.profileItems;
+    mutation.afterProfileItems = candidate.profileItems;
+    mutation.rewards = rewards;
     mutation.dismantledItem = dismantledItem;
+    mutation.accountSoid = account.primarySoid;
     mutation.characterSoid = before.soid;
     mutation.dismantledInstanceSoid = instanceSoid;
     mutation.characterIndex = characterIndex;
     mutation.expectedInventoryCount = before.inventory.count;
+    mutation.expectedProfileItemCount = account.profileItemCount;
+    mutation.afterProfileItemCount = candidate.profileItemCount;
     mutation.inventoryIndex = inventoryIndex;
     mutation.movedInventoryItemCount = movedItemCount;
+    mutation.rewardCount = rewardCount;
     mutation.inventoryRow = dismantledRow;
     mutation.equipmentSlot = dismantledSlot;
+    mutation.profileChanged = rewardCount != 0;
     mutation.prepared = true;
     return true;
+}
+
+/** @return True when both descriptions name the same credited profile mutation. */
+[[nodiscard]] bool same_dismantle_reward(const DismantleReward& left,
+                                         const DismantleReward& right) noexcept {
+    return left.definitionHash == right.definitionHash && left.profileIndex == right.profileIndex
+           && left.quantity == right.quantity && left.afterQuantity == right.afterQuantity
+           && left.mutationSerial == right.mutationSerial;
+}
+
+/** @return True when two independently staged dismantles carry the exact same after-images. */
+[[nodiscard]] bool same_dismantle_transition(const PendingItemDismantle& left,
+                                             const PendingItemDismantle& right) noexcept {
+    if (left.prepared != right.prepared || left.accountSoid != right.accountSoid
+        || left.characterSoid != right.characterSoid
+        || left.dismantledInstanceSoid != right.dismantledInstanceSoid
+        || left.characterIndex != right.characterIndex
+        || left.expectedInventoryCount != right.expectedInventoryCount
+        || left.expectedProfileItemCount != right.expectedProfileItemCount
+        || left.afterProfileItemCount != right.afterProfileItemCount
+        || left.inventoryIndex != right.inventoryIndex
+        || left.movedInventoryItemCount != right.movedInventoryItemCount
+        || left.rewardCount != right.rewardCount || left.inventoryRow != right.inventoryRow
+        || left.equipmentSlot != right.equipmentSlot
+        || left.profileChanged != right.profileChanged
+        || !same_stationary_item(left.dismantledItem, right.dismantledItem)
+        || !same_character(left.beforeCharacter, right.beforeCharacter)
+        || !same_character(left.afterCharacter, right.afterCharacter)
+        || !same_profile_views(left.beforeProfileItems,
+                               left.expectedProfileItemCount,
+                               right.beforeProfileItems,
+                               right.expectedProfileItemCount)
+        || !same_profile_views(left.afterProfileItems,
+                               left.afterProfileItemCount,
+                               right.afterProfileItems,
+                               right.afterProfileItemCount)) {
+        return false;
+    }
+    for (std::size_t index = 0; index < left.rewards.size(); ++index) {
+        if (!same_dismantle_reward(left.rewards[index], right.rewards[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** Applies a fully checked dismantle after-image over an exact current account view. */
+[[nodiscard]] bool materialize_item_dismantle(const AccountState& current,
+                                              const PendingItemDismantle& mutation,
+                                              AccountState& after) noexcept {
+    after = {};
+    if (!mutation.prepared || mutation.accountSoid == 0 || mutation.characterSoid == 0
+        || mutation.dismantledInstanceSoid == 0
+        || mutation.dismantledItem.instanceSoid != mutation.dismantledInstanceSoid
+        || mutation.dismantledItem.definitionHash == authored_inventory::kNoDefinitionHash
+        || mutation.characterIndex >= current.characterCount
+        || mutation.expectedInventoryCount == 0
+        || mutation.expectedInventoryCount > authored_inventory::kCharacterItemCapacity
+        || mutation.expectedProfileItemCount > authored_inventory::kProfileItemCapacity
+        || mutation.afterProfileItemCount > authored_inventory::kProfileItemCapacity
+        || mutation.inventoryIndex >= mutation.expectedInventoryCount
+        || mutation.rewardCount > mutation.rewards.size()
+        || mutation.profileChanged != (mutation.rewardCount != 0)
+        || mutation.beforeCharacter.soid != mutation.characterSoid
+        || mutation.afterCharacter.soid != mutation.characterSoid
+        || mutation.beforeCharacter.inventory.count != mutation.expectedInventoryCount
+        || mutation.afterCharacter.inventory.count + 1U != mutation.expectedInventoryCount
+        || !same_stationary_item(mutation.beforeCharacter.inventory.values[mutation.inventoryIndex],
+                                 mutation.dismantledItem)
+        || current.primarySoid != mutation.accountSoid
+        || !same_profile_inventory(
+            current, mutation.beforeProfileItems, mutation.expectedProfileItemCount)) {
+        return false;
+    }
+    const CharacterState& character = current.characters[mutation.characterIndex];
+    if (!character.selected || character.soid != mutation.characterSoid
+        || !same_character(character, mutation.beforeCharacter)) {
+        return false;
+    }
+    for (std::size_t index = 0; index < mutation.rewards.size(); ++index) {
+        const DismantleReward& reward = mutation.rewards[index];
+        if (index < mutation.rewardCount) {
+            if (reward.definitionHash == authored_inventory::kNoDefinitionHash
+                || reward.profileIndex >= mutation.afterProfileItemCount || reward.quantity <= 0
+                || reward.afterQuantity < reward.quantity || reward.mutationSerial <= 0) {
+                return false;
+            }
+            const authored_inventory::ProfileItem& row =
+                mutation.afterProfileItems[reward.profileIndex];
+            if (row.instanceSoid != 0 || row.definitionHash != reward.definitionHash
+                || row.quantity != reward.afterQuantity
+                || row.mutationSerial != reward.mutationSerial) {
+                return false;
+            }
+        } else if (reward.definitionHash != 0 || reward.profileIndex != 0 || reward.quantity != 0
+                   || reward.afterQuantity != 0 || reward.mutationSerial != 0) {
+            return false;
+        }
+    }
+    if (!mutation.profileChanged
+        && !same_profile_views(mutation.beforeProfileItems,
+                               mutation.expectedProfileItemCount,
+                               mutation.afterProfileItems,
+                               mutation.afterProfileItemCount)) {
+        return false;
+    }
+
+    PendingItemDismantle canonical{};
+    if (!stage_item_dismantle(
+            current, mutation.characterIndex, mutation.dismantledInstanceSoid, canonical)
+        || !same_dismantle_transition(canonical, mutation)) {
+        return false;
+    }
+
+    after = current;
+    after.characters[mutation.characterIndex] = mutation.afterCharacter;
+    after.profileItems = mutation.afterProfileItems;
+    after.profileItemCount = mutation.afterProfileItemCount;
+    return account::valid(after) && valid_profile_inventory(after)
+           && !identity_uses_soid(after, mutation.dismantledInstanceSoid);
 }
 
 } // namespace
@@ -2587,7 +2881,26 @@ bool prepare_item_dismantle(std::uint64_t instanceSoid, PendingItemDismantle& mu
     return true;
 }
 
-/** Commits one prepared dismantle only while its complete prepare-time character is unchanged. */
+/** Produces the exact character-and-profile after-image while the captured views remain current. */
+bool preview_item_dismantle(const PendingItemDismantle& mutation,
+                            AccountState& after) noexcept {
+    const AccountState current = account_snapshot();
+    const bool ready = materialize_item_dismantle(current, mutation, after);
+    report_dismantle("preview",
+                     ready ? "ok" : "fail",
+                     ready ? "ready" : "stale_or_invalid",
+                     mutation.dismantledItem.definitionHash,
+                     mutation.characterSoid,
+                     mutation.dismantledInstanceSoid,
+                     mutation.inventoryIndex,
+                     mutation.inventoryRow,
+                     mutation.equipmentSlot,
+                     mutation.movedInventoryItemCount,
+                     mutation.afterCharacter.nextInventorySerial);
+    return ready;
+}
+
+/** Commits one prepared dismantle only while its complete account views are unchanged. */
 bool commit_item_dismantle(PendingItemDismantle& mutation) noexcept {
     const PendingItemDismantle prepared = mutation;
     mutation = {};
@@ -2606,21 +2919,6 @@ bool commit_item_dismantle(PendingItemDismantle& mutation) noexcept {
         return false;
     };
 
-    if (!prepared.prepared || prepared.characterSoid == 0 || prepared.dismantledInstanceSoid == 0
-        || prepared.dismantledItem.instanceSoid != prepared.dismantledInstanceSoid
-        || prepared.dismantledItem.definitionHash == authored_inventory::kNoDefinitionHash
-        || prepared.characterIndex >= kCharacterCapacity || prepared.expectedInventoryCount == 0
-        || prepared.expectedInventoryCount > authored_inventory::kCharacterItemCapacity
-        || prepared.inventoryIndex >= prepared.expectedInventoryCount
-        || prepared.beforeCharacter.soid != prepared.characterSoid
-        || prepared.afterCharacter.soid != prepared.characterSoid
-        || prepared.beforeCharacter.inventory.count != prepared.expectedInventoryCount
-        || prepared.afterCharacter.inventory.count + 1U != prepared.expectedInventoryCount
-        || !same_stationary_item(prepared.beforeCharacter.inventory.values[prepared.inventoryIndex],
-                                 prepared.dismantledItem)) {
-        return fail("mutation");
-    }
-
     report_dismantle("commit_begin",
                      "ok",
                      "ready",
@@ -2634,42 +2932,17 @@ bool commit_item_dismantle(PendingItemDismantle& mutation) noexcept {
                      prepared.afterCharacter.nextInventorySerial);
 
     AcquireSRWLockExclusive(&runtime::storage::g_stateLock);
-    AccountState candidate = runtime::storage::g_state.account;
-    if (prepared.characterIndex >= candidate.characterCount) {
-        ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
-        return fail("character");
+    AccountState candidate{};
+    const bool ready =
+        materialize_item_dismantle(runtime::storage::g_state.account, prepared, candidate);
+    if (ready) {
+        runtime::storage::g_state.account = candidate;
     }
-    const CharacterState& current = candidate.characters[prepared.characterIndex];
-    if (!current.selected || current.soid != prepared.characterSoid
-        || !same_character(current, prepared.beforeCharacter)) {
-        ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
-        return fail("stale");
-    }
-
-    PendingItemDismantle canonical{};
-    if (!stage_item_dismantle(
-            candidate, prepared.characterIndex, prepared.dismantledInstanceSoid, canonical)
-        || canonical.characterSoid != prepared.characterSoid
-        || canonical.characterIndex != prepared.characterIndex
-        || canonical.expectedInventoryCount != prepared.expectedInventoryCount
-        || canonical.inventoryIndex != prepared.inventoryIndex
-        || canonical.inventoryRow != prepared.inventoryRow
-        || canonical.equipmentSlot != prepared.equipmentSlot
-        || canonical.movedInventoryItemCount != prepared.movedInventoryItemCount
-        || !same_stationary_item(canonical.dismantledItem, prepared.dismantledItem)
-        || !same_character(canonical.beforeCharacter, prepared.beforeCharacter)
-        || !same_character(canonical.afterCharacter, prepared.afterCharacter)) {
-        ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
-        return fail("transition");
-    }
-
-    candidate.characters[prepared.characterIndex] = prepared.afterCharacter;
-    if (!account::valid(candidate)) {
-        ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
-        return fail("account");
-    }
-    runtime::storage::g_state.account = candidate;
     ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
+
+    if (!ready) {
+        return fail("stale_or_invalid");
+    }
 
     report_dismantle("commit_end",
                      "ok",

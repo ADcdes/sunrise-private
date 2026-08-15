@@ -255,7 +255,7 @@ bool append_profile_item_acquisition_notification(
     return true;
 }
 
-/** Appends one atomic character-upsert-and-instance-release Family-4 dismantle update. */
+/** Appends one atomic dismantle update, including any account-wide material payout. */
 bool append_item_dismantle_notification(Scratch& scratch,
                                         const queuez::ItemDismantle& dismantle,
                                         const state::PendingItemDismantle& mutation,
@@ -269,12 +269,19 @@ bool append_item_dismantle_notification(Scratch& scratch,
     }
     const std::size_t objectCount = prepared.family.objects.size();
     const std::size_t beforeBytes = written;
-    if (objectCount != 2 || prepared.family.objects[0].id != dismantle.characterDefinitionId
+    const std::size_t expectedObjectCount = dismantle.updatesAccount ? 3U : 2U;
+    if (objectCount != expectedObjectCount
+        || prepared.family.objects[0].id != dismantle.characterDefinitionId
         || prepared.family.objects[0].version != dismantle.characterSoid
         || prepared.family.objects[1].id != dismantle.itemInstanceDefinitionId
         || prepared.family.objects[1].version != dismantle.dismantledInstanceSoid
         || prepared.family.objects[1].encoding != middleware::queuez::Encoding::oodle
         || !prepared.family.objects[1].payload.empty()
+        || (dismantle.updatesAccount
+            && (prepared.family.objects[2].id != dismantle.accountDefinitionId
+                || prepared.family.objects[2].version != dismantle.accountSoid
+                || prepared.family.objects[2].encoding != middleware::queuez::Encoding::oodle
+                || prepared.family.objects[2].payload.empty()))
         || !queuez_frame::append(scratch,
                                  prepared.family,
                                  prepared.rawClearSize,
