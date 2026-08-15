@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "../../../../state/build_data/runtime.h"
 #include "internal.h"
 
@@ -96,8 +98,10 @@ void apply_material_pairs(const details::Definition& detail,
     }
 }
 
-/** Applies plug-owned gear art and arrangements after the base item. */
-void apply_plug_art(const Equipped& equipped, layout::RenderEntry& entry) noexcept {
+/** Applies plug-owned gear art and appends its class-qualified overlay arrangement. */
+void apply_plug_art(const Equipped& equipped,
+                    state::CharacterClass characterClass,
+                    layout::RenderEntry& entry) noexcept {
     for (std::size_t lane = 0; lane < equipped.laneCount; ++lane) {
         details::Definition plug{};
         if (equipped.plugs[lane] == details::kUnavailableItemIndex
@@ -109,8 +113,13 @@ void apply_plug_art(const Equipped& equipped, layout::RenderEntry& entry) noexce
         if (plug.gearArtIndex != details::kUnavailableArtIndex) {
             entry.art[layout::kGearArtSlot] = plug.gearArtIndex;
         }
-        if (plug.artArrangementIndex != details::kUnavailableArtIndex) {
-            entry.art[layout::kArtArrangementSlot] = plug.artArrangementIndex;
+        const std::uint16_t overlay = select_art_arrangement(plug, characterClass);
+        if (overlay != details::kUnavailableArtIndex) {
+            const auto empty = std::find(
+                entry.overlays.begin(), entry.overlays.end(), layout::kEmptyDefinitionIndex);
+            if (empty != entry.overlays.end()) {
+                *empty = overlay;
+            }
         }
     }
 }
@@ -143,6 +152,7 @@ bool resolve_equipped(const family4::loadout::SlottedInstance& slotted,
 
 /** Fills each equipped render row with its instance, definition, art and material pairs. */
 bool apply_render(const family4::loadout::ResolvedInstances& instances,
+                  state::CharacterClass characterClass,
                   layout::Appearance& appearance) noexcept {
     for (std::size_t index = 0; index < instances.itemCount; ++index) {
         const family4::loadout::SlottedInstance& slotted = instances.items[index];
@@ -160,8 +170,8 @@ bool apply_render(const family4::loadout::ResolvedInstances& instances,
         // Both art lookups accept 0, so an item with no art block keeps the empty sentinel
         // rather than taking art row 0.
         entry.art[layout::kGearArtSlot] = detail.gearArtIndex;
-        entry.art[layout::kArtArrangementSlot] = detail.artArrangementIndex;
-        apply_plug_art(equipped, entry);
+        entry.art[layout::kArtArrangementSlot] = select_art_arrangement(detail, characterClass);
+        apply_plug_art(equipped, characterClass, entry);
         apply_material_pairs(detail, equipped, entry);
     }
     return true;
