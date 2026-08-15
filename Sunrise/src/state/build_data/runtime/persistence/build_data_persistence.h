@@ -67,6 +67,9 @@ struct Context {
  */
 void clear_locked(Context& state) noexcept;
 
+/** Releases transient cache snapshot banks while preserving paths, identity, and flags. */
+void release_scratch_locked(Context& state) noexcept;
+
 /**
  * Gives mutable views over every generated domain.
  * @param state Its lock must already be held exclusively.

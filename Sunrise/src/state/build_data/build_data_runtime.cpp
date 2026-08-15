@@ -69,12 +69,14 @@ bool initialize(void* module, std::uint64_t configuredEquipmentHash) noexcept {
                     runtime::persistence::scratch_domains(persistenceState),
                     counts);
     if (status == cache::LoadStatus::missing) {
+        runtime::persistence::release_scratch_locked(persistenceState);
         ReleaseSRWLockExclusive(&persistenceState.lock);
         return true;
     }
     if (status == cache::LoadStatus::stale) {
         // A stale cache is replaced only after every domain is complete.
         persistenceState.replaceStaleCache = true;
+        runtime::persistence::release_scratch_locked(persistenceState);
         ReleaseSRWLockExclusive(&persistenceState.lock);
         return true;
     }
@@ -124,6 +126,7 @@ bool initialize(void* module, std::uint64_t configuredEquipmentHash) noexcept {
     runtime::spawn_catalog::publish();
     runtime::name_catalog::publish();
     persistenceState.persisted = true;
+    runtime::persistence::release_scratch_locked(persistenceState);
     ReleaseSRWLockExclusive(&persistenceState.lock);
     return true;
 }

@@ -15,10 +15,12 @@
 #include "../../../../state/build_data/abilities/definition.h"
 #include "../../../../state/build_data/collectibles/collectible_catalog.h"
 #include "../../../../state/build_data/constants/definition.h"
+#include "../../../../state/build_data/inventory/buckets/definition.h"
 #include "../../../../state/build_data/items/details/definition.h"
 #include "../../../../state/build_data/items/item_catalog.h"
 #include "../../../../state/build_data/material_requirements/material_requirement_catalog.h"
 #include "../../../../state/build_data/progressions/definition.h"
+#include "../../../../state/build_data/runtime.h"
 
 namespace sunrise::client::content::items::packages {
 
@@ -62,6 +64,13 @@ struct Storage {
     std::vector<std::byte> plugSetTable{};
     /** Compact 0..3 special plug-category code of every dense installed item row. */
     std::array<std::uint8_t, state::build_data::items::kDefinitionCapacity> specialPlugCategories{};
+    /** Inventory routing rows held until the paired bucket-definition table is resolved. */
+    std::array<state::build_data::inventory::buckets::Descriptor,
+               state::build_data::inventory::buckets::kDescriptorCapacity>
+        bucketRows{};
+    std::size_t bucketCount{};
+    std::array<std::int8_t, state::build_data::inventory::buckets::kDescriptorCapacity>
+        equipmentSlotByBucket{};
     DetailRequests detailRequests{};
     std::array<std::uint16_t, kDetailCapacity> requestedDetailIndices{};
     std::unique_ptr<state::build_data::items::details::Definition[]> details{};
@@ -102,6 +111,9 @@ struct Storage {
  * supported by the generated loadout.
  */
 [[nodiscard]] bool equippable(const tables::items::Row& row) noexcept;
+
+/** Publishes parsed inventory buckets after applying the extracted item-slot relation. */
+[[nodiscard]] bool publish_buckets(Storage& storage) noexcept;
 
 /**
  * Adds one definition index to the deduplicated requested set.
@@ -252,6 +264,12 @@ void report_detail_failure(std::size_t slot, std::uint16_t definitionIndex) noex
 /** @param count Ability bucket rows the pass built, one per subclass and ability selection. */
 void report_ability_count(std::size_t count) noexcept;
 
+/** Reports a bounded number of exact subclass/ability extraction failures per process. */
+void report_ability_failure(const char* stage,
+                            std::size_t character,
+                            std::size_t first,
+                            std::size_t second) noexcept;
+
 /** Reports requested, retained, and skipped detail closure rows. */
 void report_detail_count(std::size_t requested, std::size_t built) noexcept;
 
@@ -260,6 +278,14 @@ void report_socket_plug_count(std::size_t rules,
                               std::size_t pools,
                               std::size_t members,
                               std::size_t skipped) noexcept;
+
+/** Reports the validated installed bucket/equipment-slot coverage. */
+void report_bucket_equipment_mapping(std::size_t mappedSlots) noexcept;
+
+/** Reports the first rejected bucket-definition invariant in one process. */
+void report_bucket_equipment_failure(const char* stage,
+                                     std::size_t first,
+                                     std::size_t second) noexcept;
 
 /** Reports the pass outcome once. @param published Rows published, or zero on failure. */
 void report(std::size_t published, const char* reason) noexcept;

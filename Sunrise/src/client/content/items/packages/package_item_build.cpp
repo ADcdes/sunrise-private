@@ -135,7 +135,10 @@ bool build() noexcept {
                     continue;
                 }
             }
-            (void)build_buckets(source, storage, std::span<const std::byte>{storage.root});
+            reason = "buckets";
+            if (!build_buckets(source, storage, std::span<const std::byte>{storage.root})) {
+                continue;
+            }
             (void)build_socket_entry_lists(
                 source, storage, std::span<const std::byte>{storage.root});
             if (!state::build_data::progression_definitions_ready()) {
@@ -187,11 +190,14 @@ bool build() noexcept {
     }
     SecureZeroMemory(&keys, sizeof keys);
     const bool complete = package_domains_ready();
+    const bool itemDomainsReady = root_domains_ready();
     if (complete) {
         // Nothing reads a package again until the next boot, so this reader's files go back now.
         reader::close_files(storage.scratch);
     }
-    report(complete ? state::build_data::item_definition_count() : 0, reason);
+    // Scenario, spawn-set, and hash-name extraction advance over later refresh slices and report
+    // their own progress. Do not mislabel one of those pending domains as the last item substage.
+    report(itemDomainsReady ? state::build_data::item_definition_count() : 0, reason);
     return complete;
 }
 

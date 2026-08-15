@@ -177,44 +177,32 @@ cache::records::MutableDomains scratch_domains(Context& state) noexcept {
     };
 }
 
+/** Releases transient cache snapshot banks without allocating or walking their capacities. */
+void release_scratch_locked(Context& state) noexcept {
+    state.namedScratch.reset();
+    state.itemScratch.reset();
+    state.collectibleScratch.reset();
+    state.materialRequirementSetScratch.reset();
+    state.itemDetailScratch.reset();
+    state.socketPlugRuleScratch.reset();
+    state.socketPlugPoolScratch.reset();
+    state.socketPlugMemberScratch.reset();
+    state.inventoryBucketScratch.reset();
+    state.socketEntryListScratch.reset();
+    state.socketEntryTableScratch.reset();
+    state.abilityBucketScratch.reset();
+    state.progressionScratch.reset();
+    state.scenarioScratch.reset();
+    state.rosterGroupScratch.reset();
+    state.spawnStemScratch.reset();
+    state.spawnNameHashScratch.reset();
+    state.hashNameScratch.reset();
+    state.constantsScratch = {};
+}
+
 /** Clears fixed cache paths, identity, flags, and snapshot storage. */
 void clear_locked(Context& state) noexcept {
-    const cache::records::MutableDomains scratch = scratch_domains(state);
-    std::fill(scratch.named.begin(), scratch.named.end(), content::Definition{});
-    std::fill(scratch.items.begin(), scratch.items.end(), items::Definition{});
-    std::fill(scratch.collectibles.begin(), scratch.collectibles.end(), collectibles::Definition{});
-    std::fill(scratch.materialRequirementSets.begin(),
-              scratch.materialRequirementSets.end(),
-              material_requirements::Definition{});
-    std::fill(scratch.itemDetails.begin(), scratch.itemDetails.end(), items::details::Definition{});
-    std::fill(scratch.socketPlugRules.begin(),
-              scratch.socketPlugRules.end(),
-              items::socket_plugs::Rule{});
-    std::fill(scratch.socketPlugPools.begin(),
-              scratch.socketPlugPools.end(),
-              items::socket_plugs::Pool{});
-    std::fill(scratch.socketPlugMembers.begin(),
-              scratch.socketPlugMembers.end(),
-              items::socket_plugs::Member{});
-    std::fill(scratch.inventoryBuckets.begin(),
-              scratch.inventoryBuckets.end(),
-              inventory::buckets::Descriptor{});
-    std::fill(scratch.socketEntryLists.begin(),
-              scratch.socketEntryLists.end(),
-              socket_entry_lists::Definition{});
-    std::fill(scratch.socketEntryTables.begin(),
-              scratch.socketEntryTables.end(),
-              socket_entry_lists::EntryTable{});
-    std::fill(
-        scratch.abilityBuckets.begin(), scratch.abilityBuckets.end(), abilities::Definition{});
-    std::fill(scratch.progressions.begin(), scratch.progressions.end(), progressions::Definition{});
-    std::fill(scratch.scenarios.begin(), scratch.scenarios.end(), scenarios::Definition{});
-    std::fill(scratch.rosterGroups.begin(), scratch.rosterGroups.end(), scenarios::RosterGroup{});
-    std::fill(scratch.spawnStems.begin(), scratch.spawnStems.end(), spawn_sets::Stem{});
-    std::fill(
-        scratch.spawnNameHashes.begin(), scratch.spawnNameHashes.end(), spawn_sets::NameHash{});
-    std::fill(scratch.hashNames.begin(), scratch.hashNames.end(), hash_names::Name{});
-    state.constantsScratch = {};
+    release_scratch_locked(state);
     state.cacheDirectory = {};
     state.cachePath = {};
     state.buildIdentity = {};
@@ -292,6 +280,7 @@ bool persist_if_complete_locked(Context& state) noexcept {
     }
     state.persisted = true;
     state.replaceStaleCache = false;
+    release_scratch_locked(state);
     return true;
 }
 

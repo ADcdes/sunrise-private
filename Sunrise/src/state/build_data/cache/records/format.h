@@ -27,7 +27,7 @@ inline constexpr std::array<char, 8> kCacheMagic{'S', 'U', 'N', 'R', 'I', 'S', '
  * Current build-data cache format. An older cache is rebuilt rather than read, so a bump needs
  * no other edit. Bump it whenever a domain's stored shape changes.
  */
-inline constexpr std::uint32_t kCacheFormatVersion = 31;
+inline constexpr std::uint32_t kCacheFormatVersion = 33;
 /** Signed -1 on disk means there is no equipment slot. */
 inline constexpr std::int8_t kAbsentEquipmentSlot = -1;
 /** The standard 64-bit FNV-1a offset basis starts the payload checksum. */
@@ -162,7 +162,7 @@ struct ItemDetailRecord {
     std::array<std::int32_t, items::details::kStatCapacity> statValues{};
     std::uint32_t definitionHash{};
     std::uint16_t gearArtIndex{};
-    std::uint16_t artArrangementIndex{};
+    std::array<std::uint16_t, items::details::kArtClassCapacity> artArrangementIndices{};
     std::uint8_t sandboxPerkCount{};
     std::array<std::uint16_t, items::details::kSandboxPerkCapacity> sandboxPerks{};
     /** Material override rows in the stage order the character record folds them in. */
@@ -198,6 +198,8 @@ struct InventoryBucketRecord {
     std::uint8_t arraySelector{};
     std::uint16_t firstSlot{};
     std::uint16_t slotCount{};
+    std::int8_t equipmentSlot{inventory::buckets::kUnavailableEquipmentSlot};
+    std::uint8_t reserved{};
 };
 
 /** Disk form of the buckets one subclass publishes under one ability selection. */
@@ -376,7 +378,7 @@ static_assert(sizeof(MaterialRequirementSetRecord)
                      + material_requirements::kRequirementCapacity
                            * sizeof(MaterialRequirementRecord));
 static_assert(sizeof(ItemDetailRecord)
-              == 4 * sizeof(std::uint16_t) + 8 * sizeof(std::uint8_t) + sizeof(std::int32_t)
+              == 7 * sizeof(std::uint16_t) + 8 * sizeof(std::uint8_t) + sizeof(std::int32_t)
                      + sizeof(std::uint32_t)
                      + 2 * items::details::kInitialPlugCapacity * sizeof(std::uint16_t)
                      + items::details::kStatCapacity * (sizeof(std::uint8_t) + sizeof(std::int32_t))
@@ -388,7 +390,7 @@ static_assert(sizeof(SocketPlugRuleRecord)
 static_assert(sizeof(SocketPlugPoolRecord) == 2 * sizeof(std::uint32_t));
 static_assert(sizeof(SocketPlugMemberRecord) == sizeof(std::uint16_t));
 static_assert(sizeof(InventoryBucketRecord)
-              == 2 * sizeof(std::uint8_t) + 2 * sizeof(std::uint16_t));
+              == 4 * sizeof(std::uint8_t) + 2 * sizeof(std::uint16_t));
 static_assert(sizeof(SocketEntryListRecord)
               == sizeof(std::uint32_t) + sizeof(std::uint16_t) + 2 * sizeof(std::uint8_t)
                      + sizeof(std::uint64_t));

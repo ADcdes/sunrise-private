@@ -1,6 +1,7 @@
 #include "socket_plug_catalog.h"
 
 #include <algorithm>
+#include <bitset>
 
 #include "../../table.h"
 
@@ -11,6 +12,7 @@ Lock g_lock;
 Table<Rule, kRuleCapacity> g_rules;
 Table<Pool, kPoolCapacity> g_pools;
 Table<Member, kMemberCapacity> g_members;
+std::bitset<details::kDefinitionCapacity> g_membership;
 
 /** @return True when the first rule's item/lane key is strictly before the second. */
 [[nodiscard]] bool rule_less(const Rule& left, const Rule& right) noexcept {
@@ -26,6 +28,7 @@ void clear() noexcept {
     g_rules.clear();
     g_pools.clear();
     g_members.clear();
+    g_membership.reset();
 }
 
 /** Checks counts, strict rule order, contiguous pools, and sorted unique pool members. */
@@ -53,7 +56,10 @@ bool valid(std::span<const Rule> rules,
         }
         const auto range = members.subspan(expectedOffset, pool.memberCount);
         if (!std::is_sorted(range.begin(), range.end())
-            || std::adjacent_find(range.begin(), range.end()) != range.end()) {
+            || std::adjacent_find(range.begin(), range.end()) != range.end()
+            || std::any_of(range.begin(), range.end(), [](Member member) {
+                   return member >= details::kDefinitionCapacity;
+               })) {
             return false;
         }
         expectedOffset += pool.memberCount;
@@ -68,8 +74,16 @@ bool replace(std::span<const Rule> rules,
     if (!valid(rules, pools, members)) {
         return false;
     }
+    std::bitset<details::kDefinitionCapacity> membership;
+    for (const Member member : members) {
+        membership.set(member);
+    }
     const Lock::Exclusive guard(g_lock);
-    return g_rules.replace(rules) && g_pools.replace(pools) && g_members.replace(members);
+    if (!g_rules.replace(rules) || !g_pools.replace(pools) || !g_members.replace(members)) {
+        return false;
+    }
+    g_membership = membership;
+    return true;
 }
 
 /** Performs an exact item/lane rule lookup followed by a binary search in its plug pool. */
@@ -101,8 +115,7 @@ bool allowed(std::uint16_t itemDefinitionIndex,
 /** Answers whether one definition occurs in any installed ordinary-socket plug pool. */
 bool contains(Member plugDefinitionIndex) noexcept {
     const Lock::Shared guard(g_lock);
-    const auto members = g_members.rows();
-    return std::find(members.begin(), members.end(), plugDefinitionIndex) != members.end();
+    return plugDefinitionIndex < g_membership.size() && g_membership.test(plugDefinitionIndex);
 }
 
 /** Copies the three related arrays under the same shared hold. */

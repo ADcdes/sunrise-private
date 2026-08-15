@@ -22,6 +22,8 @@ inline constexpr std::size_t kSandboxPerkCapacity = 4;
 inline constexpr std::size_t kRenderOverrideCapacity = 32;
 /** All bits set marks an art index the definition does not declare. */
 inline constexpr std::uint16_t kUnavailableArtIndex = 0xFFFF;
+/** Generic art plus one row for each of Titan, Hunter, and Warlock. */
+inline constexpr std::size_t kArtClassCapacity = 4;
 /** All bits set marks a socket lane whose type the definition does not declare. */
 inline constexpr std::uint16_t kUnavailableSocketType = 0xFFFF;
 /** A signed material override key is empty at minus one. */
@@ -59,8 +61,8 @@ struct Row {
     std::int32_t statValues[kStatCapacity]{};
     /** Gear art definition index, read straight from the art block. */
     std::uint16_t gearArtIndex{kUnavailableArtIndex};
-    /** Art arrangement index, read from the art block's first art row. */
-    std::uint16_t artArrangementIndex{kUnavailableArtIndex};
+    /** Generic, Titan, Hunter, and Warlock art arrangements declared by the art block. */
+    std::uint16_t artArrangementIndices[kArtClassCapacity]{};
     std::uint8_t sandboxPerkCount{};
     std::uint16_t sandboxPerks[kSandboxPerkCapacity]{};
     std::uint8_t renderOverrideCount{};

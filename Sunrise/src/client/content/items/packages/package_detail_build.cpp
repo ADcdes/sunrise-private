@@ -2,7 +2,6 @@
 #include <array>
 #include <cstring>
 #include <optional>
-#include <utility>
 
 #include "../../../../state/account/account_state.h"
 #include "../../../../state/runtime/runtime.h"
@@ -13,38 +12,13 @@ namespace {
 
 namespace domain = state::build_data::items::details;
 
-/**
- * Fallback equipment slot for old definitions whose optional equipment block is absent.
- * The
- * installed definition's own slot wins when present; unlike a bucket, it can distinguish
- *
- * multiple native equipment positions that share one inventory bucket.
- */
-constexpr std::array<std::pair<std::uint8_t, std::int8_t>, 16> kEquipmentSlotOfBucket{{
-    {16, 0},
-    {3, 1},
-    {4, 2},
-    {5, 4},
-    {6, 5},
-    {7, 6},
-    {0, 7},
-    {1, 8},
-    {2, 9},
-    {10, 10},
-    {9, 11},
-    {8, 12},
-    {27, 13},
-    {41, 14},
-    {17, 15},
-    {47, 17},
-}};
-
 /** @param bucketId Inventory bucket. @return Its equipment slot, or none when not equippable. */
 [[nodiscard]] std::optional<std::int8_t> equipment_slot(std::uint8_t bucketId) noexcept {
-    for (const auto& entry : kEquipmentSlotOfBucket) {
-        if (entry.first == bucketId) {
-            return entry.second;
-        }
+    state::build_data::inventory::buckets::Descriptor descriptor{};
+    if (state::build_data::find_inventory_bucket_descriptor(bucketId, descriptor)
+        && descriptor.equipmentSlot
+               != state::build_data::inventory::buckets::kUnavailableEquipmentSlot) {
+        return descriptor.equipmentSlot;
     }
     return std::nullopt;
 }
@@ -76,7 +50,9 @@ constexpr std::array<std::pair<std::uint8_t, std::int8_t>, 16> kEquipmentSlotOfB
     }
     detail.statCount = static_cast<std::uint8_t>(stats);
     detail.gearArtIndex = row.gearArtIndex;
-    detail.artArrangementIndex = row.artArrangementIndex;
+    for (std::size_t index = 0; index < detail.artArrangementIndices.size(); ++index) {
+        detail.artArrangementIndices[index] = row.artArrangementIndices[index];
+    }
     const std::size_t perks = row.sandboxPerkCount < detail.sandboxPerks.size()
                                   ? row.sandboxPerkCount
                                   : detail.sandboxPerks.size();
@@ -164,7 +140,28 @@ bool authored(const AuthoredHashes& hashes, std::uint32_t hash) noexcept {
 
 /** @return True when the row's bucket maps to a supported equipment slot. */
 bool equippable(const tables::items::Row& row) noexcept {
-    return equipment_slot(row.bucketId).has_value();
+    return row.equipmentSlot.has_value() || equipment_slot(row.bucketId).has_value();
+}
+
+/** Applies the bucket-definition equipment mapping and publishes the complete bucket table. */
+bool publish_buckets(Storage& storage) noexcept {
+    namespace buckets = state::build_data::inventory::buckets;
+    if (state::build_data::inventory_bucket_descriptors_ready()) {
+        return true;
+    }
+    if (storage.bucketCount == 0 || storage.bucketCount > storage.bucketRows.size()) {
+        return false;
+    }
+    bool hasEquipmentSlot = false;
+    for (std::size_t index = 0; index < storage.bucketCount; ++index) {
+        buckets::Descriptor& descriptor = storage.bucketRows[index];
+        descriptor.equipmentSlot = storage.equipmentSlotByBucket[descriptor.bucketId];
+        hasEquipmentSlot =
+            hasEquipmentSlot || descriptor.equipmentSlot != buckets::kUnavailableEquipmentSlot;
+    }
+    return hasEquipmentSlot
+           && state::build_data::publish_inventory_bucket_descriptors(
+               std::span(storage.bucketRows).first(storage.bucketCount));
 }
 
 /** Adds one definition index to the deduplicated requested set. */

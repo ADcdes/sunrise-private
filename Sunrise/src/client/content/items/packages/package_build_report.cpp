@@ -3,12 +3,15 @@
 #include <cstdio>
 
 #include "../../../../core/logging/log.h"
+#include "../../../../middleware/content/packages/tables/definition_index_table.h"
 #include "internal.h"
 
 namespace sunrise::client::content::items::packages {
 namespace {
 
 std::atomic<bool> g_reported{};
+std::atomic<bool> g_bucketFailureReported{};
+std::atomic<std::size_t> g_abilityFailureReports{};
 
 } // namespace
 
@@ -35,6 +38,31 @@ void report_ability_count(std::size_t count) noexcept {
     if (written > 0) {
         core::log::write(core::log::Channel::client,
                          core::log::Level::info,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+}
+
+/** Reports the precise ability boundary without flooding the periodic extraction retry. */
+void report_ability_failure(const char* stage,
+                            std::size_t character,
+                            std::size_t first,
+                            std::size_t second) noexcept {
+    constexpr std::size_t kReportLimit = 12;
+    if (g_abilityFailureReports.fetch_add(1, std::memory_order_relaxed) >= kReportLimit) {
+        return;
+    }
+    std::array<char, 176> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=pkg stage=ability_failure reason=%s character=%zu "
+                                      "first=%zu second=%zu",
+                                      stage,
+                                      character,
+                                      first,
+                                      second);
+    if (written > 0) {
+        core::log::write(core::log::Channel::client,
+                         core::log::Level::warn,
                          {line.data(), static_cast<std::size_t>(written)});
     }
 }
@@ -73,6 +101,43 @@ void report_socket_plug_count(std::size_t rules,
     if (written > 0) {
         core::log::write(core::log::Channel::client,
                          skipped == 0 ? core::log::Level::info : core::log::Level::warn,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+}
+
+/** Reports the installed bucket definition relation used by loadout resolution. */
+void report_bucket_equipment_mapping(std::size_t mappedSlots) noexcept {
+    std::array<char, 128> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=pkg stage=bucket_equipment result=ok rows=%zu mapped=%zu",
+                                      tables::kBucketDefinitionCount,
+                                      mappedSlots);
+    if (written > 0) {
+        core::log::write(core::log::Channel::client,
+                         core::log::Level::info,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+}
+
+/** Reports one fail-closed bucket-definition rejection without flooding extraction retries. */
+void report_bucket_equipment_failure(const char* stage,
+                                     std::size_t first,
+                                     std::size_t second) noexcept {
+    if (g_bucketFailureReported.exchange(true, std::memory_order_relaxed)) {
+        return;
+    }
+    std::array<char, 160> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=pkg stage=bucket_equipment result=fail reason=%s "
+                                      "first=%zu second=%zu",
+                                      stage,
+                                      first,
+                                      second);
+    if (written > 0) {
+        core::log::write(core::log::Channel::client,
+                         core::log::Level::warn,
                          {line.data(), static_cast<std::size_t>(written)});
     }
 }

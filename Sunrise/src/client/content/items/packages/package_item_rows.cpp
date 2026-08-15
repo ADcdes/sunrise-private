@@ -44,8 +44,11 @@ bool build_item_rows(const reader::Source& source,
     const bool needDefinitions = !state::build_data::item_definitions_ready();
     const bool needDetails = !state::build_data::configured_item_details_ready();
     const bool needSocketPlugs = !state::build_data::socket_plug_rules_ready();
+    const bool needBuckets = !state::build_data::inventory_bucket_descriptors_ready();
     const bool needDetailRows = needDetails || needSocketPlugs;
-    const bool needRows = needDefinitions || needDetailRows;
+    // Bucket equipment slots are derived from this same complete item walk, so a partial retry
+    // must still revisit the table even when definitions and detail domains already published.
+    const bool needRows = needDefinitions || needDetailRows || needBuckets;
     bool published = !needRows;
     if (needDetails && !storage.details) {
         storage.details.reset(new (std::nothrow) build_details::Definition[kDetailCapacity]);
@@ -91,9 +94,10 @@ bool build_item_rows(const reader::Source& source,
     }
     bool requestsFit = true;
     if (needRows) {
-        requestsFit = !needDetailRows
-                      || materialize_requests(
-                          storage.detailRequests, storage.requestedDetailIndices, detailCount);
+        requestsFit = publish_buckets(storage)
+                      && (!needDetailRows
+                          || materialize_requests(
+                              storage.detailRequests, storage.requestedDetailIndices, detailCount));
         published = rowCount != 0 && requestsFit && detailStorageReady;
     }
     if (published && needDefinitions) {

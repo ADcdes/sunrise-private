@@ -208,7 +208,7 @@ bool encode(const items::details::Definition& value, ItemDetailRecord& record) n
     }
     record.definitionHash = value.definitionHash;
     record.gearArtIndex = value.gearArtIndex;
-    record.artArrangementIndex = value.artArrangementIndex;
+    record.artArrangementIndices = value.artArrangementIndices;
     record.sandboxPerkCount = value.sandboxPerkCount;
     record.sandboxPerks = value.sandboxPerks;
     record.renderOverrideCount = value.renderOverrideCount;
@@ -247,7 +247,7 @@ bool decode(const ItemDetailRecord& record, items::details::Definition& value) n
     }
     value.definitionHash = record.definitionHash;
     value.gearArtIndex = record.gearArtIndex;
-    value.artArrangementIndex = record.artArrangementIndex;
+    value.artArrangementIndices = record.artArrangementIndices;
     value.sandboxPerkCount = record.sandboxPerkCount;
     value.sandboxPerks = record.sandboxPerks;
     value.renderOverrideCount = record.renderOverrideCount;
@@ -265,6 +265,8 @@ bool encode(const inventory::buckets::Descriptor& value, InventoryBucketRecord& 
         static_cast<std::uint8_t>(value.arraySelector),
         value.firstSlot,
         value.slotCount,
+        value.equipmentSlot,
+        value.reserved,
     };
     return true;
 }
@@ -276,6 +278,8 @@ bool decode(const InventoryBucketRecord& record, inventory::buckets::Descriptor&
         static_cast<inventory::buckets::ArraySelector>(record.arraySelector),
         record.firstSlot,
         record.slotCount,
+        record.equipmentSlot,
+        record.reserved,
     };
     return true;
 }

@@ -176,6 +176,18 @@ inline constexpr std::size_t kSocketEntryListTableSlot = 97;
 inline constexpr std::size_t kInvestmentRootChild = 0;
 /** The investment root holds the inventory bucket table at this slot. */
 inline constexpr std::size_t kBucketTableSlot = 17;
+/** Installed bucket-definition table pairing inventory buckets with native equipment slots. */
+inline constexpr std::uint32_t kBucketDefinitionTableTag = 0x81327D66U;
+/** Package class of the bucket-definition index table. */
+inline constexpr std::uint32_t kBucketDefinitionTableClass = 0x80805936U;
+/** The installed table contains one row for each item-bearing bucket definition. */
+inline constexpr std::size_t kBucketDefinitionCount = 34;
+/** One resolved bucket definition occupies 72 bytes. */
+inline constexpr std::size_t kBucketDefinitionSize = 72;
+/** The native equipment-slot byte sits here in each resolved bucket definition. */
+inline constexpr std::size_t kBucketDefinitionEquipmentSlotOffset = 64;
+/** Non-equippable bucket definitions carry the all-one slot sentinel. */
+inline constexpr std::uint8_t kBucketDefinitionUnavailableEquipmentSlot = 0xFF;
 /** Element class of the socket entry list table. */
 inline constexpr std::uint32_t kSocketEntryListTableClass = 0x80807A7EU;
 /** A socket entry list definition holds its entry array descriptor here. */
