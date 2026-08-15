@@ -16,8 +16,12 @@ enum class ItemField : std::size_t {
     level,
     quantity,
     plugs,
+    flags,
     count,
 };
+
+/** The supported client exposes Locked and Tracked/Favorite as accumulated item-state bits. */
+constexpr std::uint32_t kSupportedItemStateMask = 0x3U;
 
 } // namespace
 
@@ -146,11 +150,22 @@ bool Parser::equipment_item(authored_inventory::Item& output) noexcept {
             if (!mark(ItemField::plugs) || !equipment_plugs(parsed.sockets)) {
                 return false;
             }
+        } else if (key == "flags") {
+            std::uint64_t flags = 0;
+            if (!mark(ItemField::flags) || !unsigned_value(flags)
+                || flags > kSupportedItemStateMask) {
+                return false;
+            }
+            parsed.flags = static_cast<std::uint32_t>(flags);
         } else {
             return false;
         }
 
         if (consume('}')) {
+            // Authored flags are optional so existing settings remain valid; an omitted value is
+            // the canonical zero state. Every identity, quantity, level and socket field remains
+            // mandatory.
+            supplied.set(static_cast<std::size_t>(ItemField::flags));
             if (!supplied.all() || !authored_inventory::valid(parsed)) {
                 return false;
             }

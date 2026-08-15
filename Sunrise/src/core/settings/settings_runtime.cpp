@@ -19,7 +19,7 @@ constexpr std::wstring_view kSettingsFileSuffix = L"\\settings.json";
 /** An upgraded document is staged under this suffix before it replaces the settings file. */
 constexpr std::wstring_view kUpgradeStageSuffix = L".new";
 /** Largest settings file accepted into fixed stack storage. */
-constexpr std::size_t kConfigCapacity = 64 * 1024;
+constexpr std::size_t kConfigCapacity = 128 * 1024;
 
 Settings g_settings = defaults();
 
