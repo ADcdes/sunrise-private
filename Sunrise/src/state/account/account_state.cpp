@@ -18,6 +18,36 @@ inline constexpr std::size_t kIdentityCapacity =
            && item.mutationSerial == 0;
 }
 
+/** @return True when one unused dismantle policy row is canonical zero. */
+[[nodiscard]] bool empty_dismantle_reward(const DismantleRewardPolicy& reward) noexcept {
+    return reward.definitionHash == 0 && reward.quantity == 0;
+}
+
+/** Checks filled policy rows, uniqueness, and the zero tail. */
+[[nodiscard]] bool valid_dismantle_rewards(const AccountState& state) noexcept {
+    if (state.dismantleRewardCount > state.dismantleRewards.size()) {
+        return false;
+    }
+    for (std::size_t index = 0; index < state.dismantleRewards.size(); ++index) {
+        const DismantleRewardPolicy& reward = state.dismantleRewards[index];
+        if (index >= state.dismantleRewardCount) {
+            if (!empty_dismantle_reward(reward)) {
+                return false;
+            }
+            continue;
+        }
+        if (reward.definitionHash == inventory::kNoDefinitionHash || reward.quantity <= 0) {
+            return false;
+        }
+        for (std::size_t prior = 0; prior < index; ++prior) {
+            if (state.dismantleRewards[prior].definitionHash == reward.definitionHash) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 /** Adds one nonzero globally unique key to a bounded identity set. */
 [[nodiscard]] bool append_identity(std::array<std::uint64_t, kIdentityCapacity>& identities,
                                    std::size_t& count,
@@ -40,14 +70,18 @@ inline constexpr std::size_t kIdentityCapacity =
         return false;
     }
     if (state.primarySoid == 0) {
-        if (state.profileItemCount != 0 || state.characterCount != 0 || state.settings.configured
+        if (state.profileItemCount != 0 || state.characterCount != 0
+            || state.dismantleRewardCount != 0 || state.settings.configured
             || state.settings.keyBindings.configured) {
             return false;
         }
         return std::all_of(
-            state.profileItems.cbegin(), state.profileItems.cend(), empty_profile_item);
+                   state.profileItems.cbegin(), state.profileItems.cend(), empty_profile_item)
+               && std::all_of(state.dismantleRewards.cbegin(),
+                              state.dismantleRewards.cend(),
+                              empty_dismantle_reward);
     }
-    if (!settings::valid(state.settings)) {
+    if (!settings::valid(state.settings) || !valid_dismantle_rewards(state)) {
         return false;
     }
 

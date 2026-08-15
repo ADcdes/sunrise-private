@@ -43,6 +43,7 @@ bool consume(Session& session,
              std::span<std::byte> response,
              std::size_t& written) noexcept {
     written = 0;
+    session.accountMutationPublished = false;
     if (!session.authenticated) {
         // Staying silent here looks the same as a decode fault, and both look like a dead link.
         core::log::write(core::log::Channel::server,
@@ -108,7 +109,7 @@ bool consume(Session& session,
         // good and every later reply is rejected, which is worse than a thin reply.
         clear_prefix(scratch.responseBody, responseBodySize);
         responseBodySize = 0;
-        SecureZeroMemory(&outcome, sizeof outcome);
+        outcome = {};
         handled = sendsReply;
     }
     if (handled && sendsReply) {
@@ -146,20 +147,53 @@ bool consume(Session& session,
             diagnostics::report_failure(frame.messageId, "stage");
         }
     }
-    if (handled && outcome.hasActivityTransaction) {
-        const auto& activityPlan = outcome.activityPlan;
-        handled = route.responseMode == ResponseMode::uncorrelatedPush
-                  && activity_transaction::stage_notifications(session,
-                                                               scratch,
-                                                               activityPlan,
-                                                               bapState.sessionKey,
-                                                               nextSendNonce,
-                                                               scratch.framed,
-                                                               framedSize);
-        if (!handled) {
-            diagnostics::report_failure(frame.messageId, "notify");
+    if (handled) {
+        const auto* activityPlan = transaction_if<activity_message::ActivityPlan>(outcome);
+        if (activityPlan != nullptr) {
+            handled = route.responseMode == ResponseMode::uncorrelatedPush
+                      && activity_transaction::stage_notifications(session,
+                                                                   scratch,
+                                                                   *activityPlan,
+                                                                   bapState.sessionKey,
+                                                                   nextSendNonce,
+                                                                   scratch.framed,
+                                                                   framedSize);
+            if (!handled) {
+                diagnostics::report_failure(frame.messageId, "notify");
+            }
         }
     }
+    const bool mutatesAccount =
+        outcome.hasChangeCharacter || outcome.hasSelectCharacter
+        || transaction_if<EquipmentSwapTransaction>(outcome) != nullptr
+        || transaction_if<SocketPlugTransaction>(outcome) != nullptr
+        || transaction_if<ItemStateTransaction>(outcome) != nullptr
+        || transaction_if<ItemAcquisitionTransaction>(outcome) != nullptr
+        || transaction_if<ProfileItemAcquisitionTransaction>(outcome) != nullptr
+        || transaction_if<ItemDismantleTransaction>(outcome) != nullptr;
+    // State commits consume and clear their pending payloads. Retain only the small diagnostic
+    // fields needed after publication; QueueZ after-images stay owned by the transaction variant.
+    const auto* stagedSocket = transaction_if<SocketPlugTransaction>(outcome);
+    const std::uint8_t socketLane = stagedSocket == nullptr ? 0 : stagedSocket->pending.socketLane;
+    const std::uint16_t socketPlugDefinition =
+        stagedSocket == nullptr ? 0 : stagedSocket->pending.plugDefinitionIndex;
+    const std::uint8_t socketTargetBucket =
+        stagedSocket == nullptr ? 0 : stagedSocket->pending.targetBucketId;
+    const std::uint8_t socketPlugBucket =
+        stagedSocket == nullptr ? 0 : stagedSocket->pending.plugBucketId;
+    const auto* stagedItemState = transaction_if<ItemStateTransaction>(outcome);
+    const std::uint64_t itemStateInstance =
+        stagedItemState == nullptr ? 0 : stagedItemState->pending.targetInstanceSoid;
+    const std::uint32_t itemStateFlags =
+        stagedItemState == nullptr ? 0 : stagedItemState->pending.afterFlags;
+    const auto* stagedProfile = transaction_if<ProfileItemAcquisitionTransaction>(outcome);
+    const std::uint32_t profileDefinitionHash =
+        stagedProfile == nullptr ? 0 : stagedProfile->pending.acquiredDefinitionHash;
+    const std::int32_t profileQuantity =
+        stagedProfile == nullptr ? 0 : stagedProfile->pending.acquiredQuantity;
+    const bool profileActionSource =
+        stagedProfile != nullptr && stagedProfile->pending.actionSource;
+    const bool profileAppended = stagedProfile != nullptr && stagedProfile->pending.appended;
     // Committing the transaction clears the mutation the member key lives in, so the connection
     // fields are captured before the commit and published after it.
     const ConnectionFields connection = connection_fields(outcome);
@@ -179,7 +213,8 @@ bool consume(Session& session,
             }
             arm_repushes(session, queuezPublication);
             publish_connection_fields(session, publication, connection);
-            if (outcome.hasEquipmentSwap) {
+            session.accountMutationPublished = mutatesAccount;
+            if (transaction_if<EquipmentSwapTransaction>(outcome) != nullptr) {
                 std::array<char, core::log::kLineCapacity> line{};
                 const int count = std::snprintf(
                     line.data(),
@@ -197,7 +232,7 @@ bool consume(Session& session,
                                      {line.data(), static_cast<std::size_t>(count)});
                 }
             }
-            if (outcome.hasSocketPlug) {
+            if (const auto* transaction = transaction_if<SocketPlugTransaction>(outcome)) {
                 std::array<char, core::log::kLineCapacity> line{};
                 const int count = std::snprintf(
                     line.data(),
@@ -211,18 +246,18 @@ bool consume(Session& session,
                     session.queuez.family4Version,
                     session.queuez.family0Version,
                     session.queuez.family3Version,
-                    static_cast<unsigned long long>(outcome.socketPlug.targetInstanceSoid),
-                    static_cast<unsigned>(outcome.socketPlug.socketLane),
-                    static_cast<unsigned>(outcome.socketPlug.plugDefinitionIndex),
-                    static_cast<unsigned>(outcome.socketPlug.targetBucketId),
-                    static_cast<unsigned>(outcome.socketPlug.plugBucketId));
+                    static_cast<unsigned long long>(transaction->update.targetInstanceSoid),
+                    static_cast<unsigned>(socketLane),
+                    static_cast<unsigned>(socketPlugDefinition),
+                    static_cast<unsigned>(socketTargetBucket),
+                    static_cast<unsigned>(socketPlugBucket));
                 if (count > 0) {
                     core::log::write(core::log::Channel::server,
                                      core::log::Level::debug,
                                      {line.data(), static_cast<std::size_t>(count)});
                 }
             }
-            if (outcome.hasItemState) {
+            if (const auto* transaction = transaction_if<ItemStateTransaction>(outcome)) {
                 std::array<char, core::log::kLineCapacity> line{};
                 const int count = std::snprintf(
                     line.data(),
@@ -232,15 +267,15 @@ bool consume(Session& session,
                     framedSize,
                     static_cast<unsigned>(publishesQueuez),
                     session.queuez.family4Version,
-                    static_cast<unsigned long long>(outcome.itemState.targetInstanceSoid),
-                    outcome.itemState.afterFlags);
+                    static_cast<unsigned long long>(itemStateInstance),
+                    itemStateFlags);
                 if (count > 0) {
                     core::log::write(core::log::Channel::server,
                                      core::log::Level::debug,
                                      {line.data(), static_cast<std::size_t>(count)});
                 }
             }
-            if (outcome.hasItemAcquisition) {
+            if (const auto* transaction = transaction_if<ItemAcquisitionTransaction>(outcome)) {
                 std::array<char, core::log::kLineCapacity> line{};
                 const int count = std::snprintf(
                     line.data(),
@@ -251,15 +286,15 @@ bool consume(Session& session,
                     static_cast<unsigned>(publishesQueuez),
                     session.queuez.family4Version,
                     static_cast<unsigned>(session.queuez.family4ResidentCount),
-                    static_cast<unsigned long long>(
-                        outcome.itemAcquisitionUpdate.acquiredInstanceSoid));
+                    static_cast<unsigned long long>(transaction->update.acquiredInstanceSoid));
                 if (count > 0) {
                     core::log::write(core::log::Channel::server,
                                      core::log::Level::debug,
                                      {line.data(), static_cast<std::size_t>(count)});
                 }
             }
-            if (outcome.hasProfileItemAcquisition) {
+            if (const auto* transaction =
+                    transaction_if<ProfileItemAcquisitionTransaction>(outcome)) {
                 std::array<char, core::log::kLineCapacity> line{};
                 const int count = std::snprintf(
                     line.data(),
@@ -272,20 +307,19 @@ bool consume(Session& session,
                     static_cast<unsigned>(publishesQueuez),
                     session.queuez.family4Version,
                     static_cast<unsigned>(session.queuez.family4ResidentCount),
-                    outcome.profileItemAcquisition.acquiredDefinitionHash,
-                    outcome.profileItemAcquisition.acquiredQuantity,
-                    static_cast<unsigned long long>(
-                        outcome.profileItemAcquisition.acquiredInstanceSoid),
-                    static_cast<unsigned>(outcome.profileItemAcquisition.actionSource),
-                    static_cast<unsigned>(outcome.profileItemAcquisition.appended),
-                    static_cast<unsigned>(outcome.profileItemAcquisitionUpdate.appendedResident));
+                    profileDefinitionHash,
+                    profileQuantity,
+                    static_cast<unsigned long long>(transaction->update.acquiredInstanceSoid),
+                    static_cast<unsigned>(profileActionSource),
+                    static_cast<unsigned>(profileAppended),
+                    static_cast<unsigned>(transaction->update.appendedResident));
                 if (count > 0) {
                     core::log::write(core::log::Channel::server,
                                      core::log::Level::debug,
                                      {line.data(), static_cast<std::size_t>(count)});
                 }
             }
-            if (outcome.hasItemDismantle) {
+            if (const auto* transaction = transaction_if<ItemDismantleTransaction>(outcome)) {
                 std::array<char, core::log::kLineCapacity> line{};
                 const int count = std::snprintf(
                     line.data(),
@@ -296,8 +330,7 @@ bool consume(Session& session,
                     static_cast<unsigned>(publishesQueuez),
                     session.queuez.family4Version,
                     static_cast<unsigned>(session.queuez.family4ResidentCount),
-                    static_cast<unsigned long long>(
-                        outcome.itemDismantleUpdate.dismantledInstanceSoid));
+                    static_cast<unsigned long long>(transaction->update.dismantledInstanceSoid));
                 if (count > 0) {
                     core::log::write(core::log::Channel::server,
                                      core::log::Level::debug,
@@ -309,7 +342,7 @@ bool consume(Session& session,
     clear_prefix(scratch.plaintext, plaintextSize);
     clear_prefix(scratch.responseBody, responseBodySize);
     clear_prefix(scratch.framed, framedSize);
-    SecureZeroMemory(&outcome, sizeof outcome);
+    outcome = {};
     SecureZeroMemory(&publication, sizeof publication);
     SecureZeroMemory(&queuezPublication, sizeof queuezPublication);
     if (handled) {

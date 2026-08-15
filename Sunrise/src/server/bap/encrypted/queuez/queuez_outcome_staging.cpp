@@ -20,6 +20,12 @@ bool stage_service_outcome(Scratch& scratch,
     publication = {};
     SessionState after{};
     bool armsRepush = false;
+    const auto* equipment = transaction_if<EquipmentSwapTransaction>(outcome);
+    const auto* itemState = transaction_if<ItemStateTransaction>(outcome);
+    const auto* socket = transaction_if<SocketPlugTransaction>(outcome);
+    const auto* itemAcquisition = transaction_if<ItemAcquisitionTransaction>(outcome);
+    const auto* profileAcquisition = transaction_if<ProfileItemAcquisitionTransaction>(outcome);
+    const auto* itemDismantle = transaction_if<ItemDismantleTransaction>(outcome);
     if (outcome.hasSubscription) {
         push::append_queuez_notification(scratch,
                                          before,
@@ -44,17 +50,17 @@ bool stage_service_outcome(Scratch& scratch,
         }
         middleware::secure_channel::advance_nonce(nonce);
         after = outcome.changeCharacter.after;
-    } else if (outcome.hasEquipmentSwap) {
+    } else if (equipment != nullptr) {
         // Body processing already staged this exact after-image so the correlated opcode-403
         // response could promise its version. Reuse it here; staging a second revision would make
         // the response and pushed Family-4 ladder disagree.
-        const EquipmentSwap& swap = outcome.equipmentSwapUpdate;
-        if (!valid(swap.after) || swap.characterSoid != outcome.equipmentSwap.characterSoid
+        const EquipmentSwap& swap = equipment->update;
+        if (!valid(swap.after) || swap.characterSoid != equipment->pending.characterSoid
             || swap.after.family4RootSoid != before.family4RootSoid
             || before.family4Version == (std::numeric_limits<std::int32_t>::max)()
             || swap.after.family4Version != before.family4Version + 1
             || !push::append_equipment_swap_notification(
-                scratch, swap, outcome.equipmentSwap, key, nonce, response, written)) {
+                scratch, swap, equipment->pending, key, nonce, response, written)) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
                              "ev=queuez stage=equip result=fail");
@@ -70,9 +76,9 @@ bool stage_service_outcome(Scratch& scratch,
         if (after.family0Active) {
             CharacterAppearanceRefresh refresh{};
             if (!stage_character_appearance_refresh(
-                    after, outcome.equipmentSwap.characterSoid, refresh)
+                    after, equipment->pending.characterSoid, refresh)
                 || !push::append_equipment_appearance_refresh_notification(
-                    scratch, refresh, outcome.equipmentSwap, key, nonce, response, written)) {
+                    scratch, refresh, equipment->pending, key, nonce, response, written)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=queuez stage=equip_appearance result=fail");
@@ -88,9 +94,9 @@ bool stage_service_outcome(Scratch& scratch,
         if (after.family3Active) {
             RosterAppearanceRefresh refresh{};
             if (!stage_roster_appearance_refresh(
-                    after, outcome.equipmentSwap.characterSoid, true, refresh)
+                    after, equipment->pending.characterSoid, true, refresh)
                 || !push::append_equipment_roster_refresh_notification(
-                    scratch, refresh, outcome.equipmentSwap, key, nonce, response, written)) {
+                    scratch, refresh, equipment->pending, key, nonce, response, written)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=queuez stage=equip_roster result=fail");
@@ -98,10 +104,10 @@ bool stage_service_outcome(Scratch& scratch,
             }
             after = refresh.after;
         }
-    } else if (outcome.hasItemState) {
+    } else if (itemState != nullptr) {
         // Item-state bits live in the selected-character inventory row. Publish only that
         // resident character body; item-instance, appearance, roster and manifest are unchanged.
-        const EquipmentSwap& update = outcome.itemStateUpdate;
+        const EquipmentSwap& update = itemState->update;
         bool preservedManifest = update.after.family4ResidentCount == before.family4ResidentCount;
         for (std::size_t index = 0; preservedManifest && index < before.family4ResidentCount;
              ++index) {
@@ -111,12 +117,12 @@ bool stage_service_outcome(Scratch& scratch,
                                        == before.family4Residents[index].definitionId;
         }
         if (!valid(update.after) || !preservedManifest
-            || update.characterSoid != outcome.itemState.characterSoid
+            || update.characterSoid != itemState->pending.characterSoid
             || update.after.family4RootSoid != before.family4RootSoid
             || before.family4Version == (std::numeric_limits<std::int32_t>::max)()
             || update.after.family4Version != before.family4Version + 1
             || !push::append_item_state_notification(
-                scratch, update, outcome.itemState, key, nonce, response, written)) {
+                scratch, update, itemState->pending, key, nonce, response, written)) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
                              "ev=queuez stage=item_state result=fail");
@@ -124,10 +130,10 @@ bool stage_service_outcome(Scratch& scratch,
         }
         middleware::secure_channel::advance_nonce(nonce);
         after = update.after;
-    } else if (outcome.hasSocketPlug) {
+    } else if (socket != nullptr) {
         // Body processing staged this exact +1 revision before encoding opcode 903's status pair.
         // A socket selection changes only one already-resident item-instance body.
-        const SocketPlug& socketPlug = outcome.socketPlugUpdate;
+        const SocketPlug& socketPlug = socket->update;
         bool preservedManifest =
             socketPlug.after.family4ResidentCount == before.family4ResidentCount;
         std::size_t accountMatches = 0;
@@ -146,15 +152,15 @@ bool stage_service_outcome(Scratch& scratch,
                                                               == socketPlug.accountDefinitionId);
         }
         if (!valid(socketPlug.after) || !preservedManifest || accountMatches != 1
-            || targetMatches != 1 || socketPlug.accountSoid != outcome.socketPlug.accountSoid
-            || socketPlug.characterSoid != outcome.socketPlug.characterSoid
-            || socketPlug.targetInstanceSoid != outcome.socketPlug.targetInstanceSoid
-            || socketPlug.updatesAccount != outcome.socketPlug.profileChanged
+            || targetMatches != 1 || socketPlug.accountSoid != socket->pending.accountSoid
+            || socketPlug.characterSoid != socket->pending.characterSoid
+            || socketPlug.targetInstanceSoid != socket->pending.targetInstanceSoid
+            || socketPlug.updatesAccount != socket->pending.profileChanged
             || socketPlug.after.family4RootSoid != before.family4RootSoid
             || before.family4Version == (std::numeric_limits<std::int32_t>::max)()
             || socketPlug.after.family4Version != before.family4Version + 1
             || !push::append_socket_plug_notification(
-                scratch, socketPlug, outcome.socketPlug, key, nonce, response, written)) {
+                scratch, socketPlug, socket->pending, key, nonce, response, written)) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
                              "ev=queuez stage=socket_plug result=fail");
@@ -164,12 +170,11 @@ bool stage_service_outcome(Scratch& scratch,
         after = socketPlug.after;
         // Equipped plugs feed Family zero's material, overflow-hash and sandbox-perk banks. An
         // inventory-only socket change has no rendered character record to refresh.
-        if (outcome.socketPlug.targetEquipped && after.family0Active) {
+        if (socket->pending.targetEquipped && after.family0Active) {
             CharacterAppearanceRefresh refresh{};
-            if (!stage_character_appearance_refresh(
-                    after, outcome.socketPlug.characterSoid, refresh)
+            if (!stage_character_appearance_refresh(after, socket->pending.characterSoid, refresh)
                 || !push::append_socket_appearance_refresh_notification(
-                    scratch, refresh, outcome.socketPlug, key, nonce, response, written)) {
+                    scratch, refresh, socket->pending, key, nonce, response, written)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=queuez stage=socket_appearance result=fail");
@@ -179,12 +184,12 @@ bool stage_service_outcome(Scratch& scratch,
         }
         // A socket change can alter the rendered shader/perk banks in Family three, but it does not
         // change the roster's base-definition references.  Only the character record is owed.
-        if (outcome.socketPlug.targetEquipped && after.family3Active) {
+        if (socket->pending.targetEquipped && after.family3Active) {
             RosterAppearanceRefresh refresh{};
             if (!stage_roster_appearance_refresh(
-                    after, outcome.socketPlug.characterSoid, false, refresh)
+                    after, socket->pending.characterSoid, false, refresh)
                 || !push::append_socket_roster_refresh_notification(
-                    scratch, refresh, outcome.socketPlug, key, nonce, response, written)) {
+                    scratch, refresh, socket->pending, key, nonce, response, written)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=queuez stage=socket_roster result=fail");
@@ -192,10 +197,10 @@ bool stage_service_outcome(Scratch& scratch,
             }
             after = refresh.after;
         }
-    } else if (outcome.hasItemAcquisition) {
+    } else if (itemAcquisition != nullptr) {
         // Body processing staged this exact manifest append before encoding the response version.
         // The character and new item objects must both fit or the State insertion is not committed.
-        const ItemAcquisition& acquisition = outcome.itemAcquisitionUpdate;
+        const ItemAcquisition& acquisition = itemAcquisition->update;
         const std::size_t appendedIndex = before.family4ResidentCount;
         bool preservedManifest = acquisition.after.family4ResidentCount == appendedIndex + 1U;
         for (std::size_t index = 0; preservedManifest && index < appendedIndex; ++index) {
@@ -205,10 +210,10 @@ bool stage_service_outcome(Scratch& scratch,
                                        == before.family4Residents[index].definitionId;
         }
         if (!valid(acquisition.after) || !preservedManifest
-            || acquisition.accountSoid != outcome.itemAcquisition.accountSoid
-            || acquisition.characterSoid != outcome.itemAcquisition.characterSoid
-            || acquisition.acquiredInstanceSoid != outcome.itemAcquisition.acquiredInstanceSoid
-            || acquisition.updatesAccount != outcome.itemAcquisition.profileChanged
+            || acquisition.accountSoid != itemAcquisition->pending.accountSoid
+            || acquisition.characterSoid != itemAcquisition->pending.characterSoid
+            || acquisition.acquiredInstanceSoid != itemAcquisition->pending.acquiredInstanceSoid
+            || acquisition.updatesAccount != itemAcquisition->pending.profileChanged
             || acquisition.accountSoid != before.family4RootSoid
             || acquisition.after.family4RootSoid != before.family4RootSoid
             || before.family4ResidentCount >= before.family4Residents.size()
@@ -219,7 +224,7 @@ bool stage_service_outcome(Scratch& scratch,
             || acquisition.after.family4Residents[appendedIndex].definitionId
                    != acquisition.itemInstanceDefinitionId
             || !push::append_item_acquisition_notification(
-                scratch, acquisition, outcome.itemAcquisition, key, nonce, response, written)) {
+                scratch, acquisition, itemAcquisition->pending, key, nonce, response, written)) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
                              "ev=queuez stage=acquire result=fail");
@@ -227,10 +232,10 @@ bool stage_service_outcome(Scratch& scratch,
         }
         middleware::secure_channel::advance_nonce(nonce);
         after = acquisition.after;
-    } else if (outcome.hasProfileItemAcquisition) {
+    } else if (profileAcquisition != nullptr) {
         // A source-backed profile append creates one dependency before the account starts naming
         // it. Existing stacks and non-actionable currency rows preserve the complete manifest.
-        const ProfileItemAcquisition& acquisition = outcome.profileItemAcquisitionUpdate;
+        const ProfileItemAcquisition& acquisition = profileAcquisition->update;
         const std::size_t priorResidentCount = before.family4ResidentCount;
         const std::size_t expectedResidentCount =
             priorResidentCount + static_cast<std::size_t>(acquisition.appendedResident);
@@ -266,25 +271,19 @@ bool stage_service_outcome(Scratch& scratch,
                     : acquisition.itemInstanceDefinitionId == 0 && !acquisition.appendedResident
                           && priorProfileResidentMatches == 0);
         if (!valid(acquisition.after) || !validManifest || !sourceIdentityValid
-            || acquisition.accountSoid != outcome.profileItemAcquisition.accountSoid
-            || acquisition.acquiredInstanceSoid
-                   != outcome.profileItemAcquisition.acquiredInstanceSoid
-            || acquisition.actionSource != outcome.profileItemAcquisition.actionSource
+            || acquisition.accountSoid != profileAcquisition->pending.accountSoid
+            || acquisition.acquiredInstanceSoid != profileAcquisition->pending.acquiredInstanceSoid
+            || acquisition.actionSource != profileAcquisition->pending.actionSource
             || acquisition.appendedResident
-                   != (outcome.profileItemAcquisition.appended
-                       && outcome.profileItemAcquisition.actionSource)
+                   != (profileAcquisition->pending.appended
+                       && profileAcquisition->pending.actionSource)
             || acquisition.accountSoid != before.family4RootSoid || before.family4ResidentCount == 0
             || acquisition.accountDefinitionId != before.family4Residents.front().definitionId
             || acquisition.after.family4RootSoid != before.family4RootSoid
             || before.family4Version == (std::numeric_limits<std::int32_t>::max)()
             || acquisition.after.family4Version != before.family4Version + 1
-            || !push::append_profile_item_acquisition_notification(scratch,
-                                                                   acquisition,
-                                                                   outcome.profileItemAcquisition,
-                                                                   key,
-                                                                   nonce,
-                                                                   response,
-                                                                   written)) {
+            || !push::append_profile_item_acquisition_notification(
+                scratch, acquisition, profileAcquisition->pending, key, nonce, response, written)) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
                              "ev=queuez stage=profile_acquire result=fail");
@@ -292,11 +291,11 @@ bool stage_service_outcome(Scratch& scratch,
         }
         middleware::secure_channel::advance_nonce(nonce);
         after = acquisition.after;
-    } else if (outcome.hasItemDismantle) {
+    } else if (itemDismantle != nullptr) {
         // A dismantle removes exactly one resident while preserving the relative order of every
         // survivor. The character after-image and empty release descriptor must fit together or
         // the State removal is not committed.
-        const ItemDismantle& dismantle = outcome.itemDismantleUpdate;
+        const ItemDismantle& dismantle = itemDismantle->update;
         bool compactedManifest =
             before.family4ResidentCount != 0
             && dismantle.after.family4ResidentCount + 1U == before.family4ResidentCount;
@@ -323,18 +322,17 @@ bool stage_service_outcome(Scratch& scratch,
                             && afterIndex == dismantle.after.family4ResidentCount;
 
         if (!valid(dismantle.after) || !compactedManifest
-            || dismantle.accountSoid != outcome.itemDismantle.accountSoid
-            || dismantle.characterSoid != outcome.itemDismantle.characterSoid
-            || dismantle.dismantledInstanceSoid != outcome.itemDismantle.dismantledInstanceSoid
-            || dismantle.updatesAccount != outcome.itemDismantle.profileChanged
-            || dismantle.accountSoid != before.family4RootSoid
-            || before.family4ResidentCount == 0
+            || dismantle.accountSoid != itemDismantle->pending.accountSoid
+            || dismantle.characterSoid != itemDismantle->pending.characterSoid
+            || dismantle.dismantledInstanceSoid != itemDismantle->pending.dismantledInstanceSoid
+            || dismantle.updatesAccount != itemDismantle->pending.profileChanged
+            || dismantle.accountSoid != before.family4RootSoid || before.family4ResidentCount == 0
             || dismantle.accountDefinitionId != before.family4Residents.front().definitionId
             || dismantle.after.family4RootSoid != before.family4RootSoid
             || before.family4Version == (std::numeric_limits<std::int32_t>::max)()
             || dismantle.after.family4Version != before.family4Version + 1
             || !push::append_item_dismantle_notification(
-                scratch, dismantle, outcome.itemDismantle, key, nonce, response, written)) {
+                scratch, dismantle, itemDismantle->pending, key, nonce, response, written)) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
                              "ev=queuez stage=dismantle result=fail");

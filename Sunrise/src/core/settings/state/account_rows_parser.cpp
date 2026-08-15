@@ -12,6 +12,71 @@ constexpr std::uint64_t kMaximumDestinationHash = (std::numeric_limits<std::uint
 
 } // namespace
 
+/** Parses the definition hashes and quantities credited by ordinary gear dismantles. */
+bool Parser::dismantle_rewards(state::AccountState& output) noexcept {
+    output.dismantleRewards = {};
+    output.dismantleRewardCount = 0;
+    if (!consume('[')) {
+        return false;
+    }
+    if (consume(']')) {
+        return true;
+    }
+    for (;;) {
+        if (output.dismantleRewardCount >= output.dismantleRewards.size() || !consume('{')) {
+            return false;
+        }
+        state::DismantleRewardPolicy reward{};
+        bool hasHash = false;
+        bool hasQuantity = false;
+        for (;;) {
+            std::string_view key;
+            if (!string(key) || !consume(':')) {
+                return false;
+            }
+            std::uint64_t value = 0;
+            if (key == "definition_hash") {
+                if (hasHash || !unsigned_value(value) || value == 0
+                    || value > (std::numeric_limits<std::uint32_t>::max)()) {
+                    return false;
+                }
+                reward.definitionHash = static_cast<std::uint32_t>(value);
+                hasHash = true;
+            } else if (key == "quantity") {
+                if (hasQuantity || !unsigned_integer(value) || value == 0
+                    || value > (std::numeric_limits<std::int32_t>::max)()) {
+                    return false;
+                }
+                reward.quantity = static_cast<std::int32_t>(value);
+                hasQuantity = true;
+            } else if (!skip_value(0)) {
+                return false;
+            }
+            if (consume('}')) {
+                break;
+            }
+            if (!consume(',')) {
+                return false;
+            }
+        }
+        for (std::size_t index = 0; index < output.dismantleRewardCount; ++index) {
+            if (output.dismantleRewards[index].definitionHash == reward.definitionHash) {
+                return false;
+            }
+        }
+        if (!hasHash || !hasQuantity) {
+            return false;
+        }
+        output.dismantleRewards[output.dismantleRewardCount++] = reward;
+        if (consume(']')) {
+            return true;
+        }
+        if (!consume(',')) {
+            return false;
+        }
+    }
+}
+
 /** Parses the authored account-wide item array. */
 bool Parser::profile_items(state::AccountState& output) noexcept {
     namespace inventory = state::account::inventory;

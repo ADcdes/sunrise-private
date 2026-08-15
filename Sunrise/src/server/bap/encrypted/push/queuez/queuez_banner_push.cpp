@@ -396,4 +396,82 @@ bool append_socket_roster_refresh_notification(Scratch& scratch,
         scratch, refresh, prepared, "socket_roster", key, nonce, response, written);
 }
 
+/** Refreshes the selected character's complete Family-0 appearance from committed State. */
+bool append_account_resync_appearance_notification(
+    Scratch& scratch,
+    const queuez::SessionState& before,
+    std::span<const std::byte, state::kAesKeySize> key,
+    std::array<std::byte, state::kBapNonceSize>& nonce,
+    std::span<std::byte> response,
+    std::size_t& written,
+    queuez::SessionState& after) noexcept {
+    after = before;
+    if (!before.family0Active) {
+        return true;
+    }
+    const state::AccountState account = state::account_snapshot();
+    const std::uint64_t selected = state::account::selected_character_soid(account);
+    if (selected == 0) {
+        return false;
+    }
+    if (before.family0Character != selected) {
+        return append_banner_move_notification(
+            scratch, before, selected, key, nonce, response, written, after);
+    }
+    std::size_t characterIndex = account.characterCount;
+    for (std::size_t index = 0; index < account.characterCount; ++index) {
+        if (account.characters[index].soid == selected) {
+            characterIndex = index;
+            break;
+        }
+    }
+    queuez::CharacterAppearanceRefresh refresh{};
+    snapshot::Prepared prepared{};
+    if (characterIndex >= account.characterCount
+        || !queuez::stage_character_appearance_refresh(before, selected, refresh)
+        || !snapshot::prepare_character_appearance_refresh(
+            scratch, refresh, account.characters[characterIndex], characterIndex, 0, true, prepared)
+        || !append_appearance_frame(
+            scratch, refresh, prepared, "peer_resync_appearance", key, nonce, response, written)) {
+        return false;
+    }
+    after = refresh.after;
+    return true;
+}
+
+/** Refreshes the selected character and its account roster from committed State. */
+bool append_account_resync_roster_notification(Scratch& scratch,
+                                               const queuez::SessionState& before,
+                                               std::span<const std::byte, state::kAesKeySize> key,
+                                               std::array<std::byte, state::kBapNonceSize>& nonce,
+                                               std::span<std::byte> response,
+                                               std::size_t& written,
+                                               queuez::SessionState& after) noexcept {
+    after = before;
+    if (!before.family3Active) {
+        return true;
+    }
+    const state::AccountState account = state::account_snapshot();
+    const std::uint64_t selected = state::account::selected_character_soid(account);
+    std::size_t characterIndex = account.characterCount;
+    for (std::size_t index = 0; index < account.characterCount; ++index) {
+        if (account.characters[index].soid == selected) {
+            characterIndex = index;
+            break;
+        }
+    }
+    queuez::RosterAppearanceRefresh refresh{};
+    snapshot::Prepared prepared{};
+    if (selected == 0 || characterIndex >= account.characterCount
+        || !queuez::stage_roster_appearance_refresh(before, selected, true, refresh)
+        || !snapshot::prepare_roster_appearance_refresh(
+            scratch, refresh, account.characters[characterIndex], characterIndex, prepared)
+        || !append_roster_appearance_frame(
+            scratch, refresh, prepared, "peer_resync_roster", key, nonce, response, written)) {
+        return false;
+    }
+    after = refresh.after;
+    return true;
+}
+
 } // namespace sunrise::server::bap::encrypted::push

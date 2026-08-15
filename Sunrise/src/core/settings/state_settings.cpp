@@ -210,6 +210,7 @@ bool Parser::account(state::AccountState& output) noexcept {
     }
     bool hasPrimarySoid = false;
     bool hasSettings = false;
+    bool hasDismantleRewards = false;
     if (consume('}')) {
         return false;
     }
@@ -232,6 +233,11 @@ bool Parser::account(state::AccountState& output) noexcept {
             if (!profile_items(output)) {
                 return false;
             }
+        } else if (key == "dismantle_rewards") {
+            if (hasDismantleRewards || !dismantle_rewards(output)) {
+                return false;
+            }
+            hasDismantleRewards = true;
         } else if (!skip_value(0)) {
             return false;
         }

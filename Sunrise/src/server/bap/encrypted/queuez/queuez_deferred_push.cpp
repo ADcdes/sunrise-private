@@ -32,6 +32,79 @@ void report_repush(const char* stage, std::size_t bytes) noexcept {
     }
 }
 
+/** Publishes the current account graph to a peer invalidated by another connection. */
+[[nodiscard]] bool consume_account_resync(Session& session,
+                                          Scratch& scratch,
+                                          std::span<std::byte> response,
+                                          std::size_t& written,
+                                          bool& touchesScratch) noexcept {
+    if (!session.accountResyncArmed || session.accountResyncGeneration == 0) {
+        return false;
+    }
+    touchesScratch = true;
+    auto nextSendNonce = session.sendNonce;
+    std::size_t framedSize = 0;
+    queuez::SessionState currentQueuez{};
+    if (!push::append_account_resync_notification(scratch,
+                                                  session.queuez,
+                                                  state::bap().sessionKey,
+                                                  nextSendNonce,
+                                                  scratch.framed,
+                                                  framedSize,
+                                                  currentQueuez)) {
+        core::log::write(core::log::Channel::server,
+                         core::log::Level::warn,
+                         "ev=queuez stage=peer_resync result=fail reason=family4");
+        return false;
+    }
+    if (currentQueuez.family0Active) {
+        queuez::SessionState appearanceAfter{};
+        if (!push::append_account_resync_appearance_notification(scratch,
+                                                                 currentQueuez,
+                                                                 state::bap().sessionKey,
+                                                                 nextSendNonce,
+                                                                 scratch.framed,
+                                                                 framedSize,
+                                                                 appearanceAfter)) {
+            core::log::write(core::log::Channel::server,
+                             core::log::Level::warn,
+                             "ev=queuez stage=peer_resync result=fail reason=family0");
+            return false;
+        }
+        currentQueuez = appearanceAfter;
+    }
+    if (currentQueuez.family3Active) {
+        queuez::SessionState rosterAfter{};
+        if (!push::append_account_resync_roster_notification(scratch,
+                                                             currentQueuez,
+                                                             state::bap().sessionKey,
+                                                             nextSendNonce,
+                                                             scratch.framed,
+                                                             framedSize,
+                                                             rosterAfter)) {
+            core::log::write(core::log::Channel::server,
+                             core::log::Level::warn,
+                             "ev=queuez stage=peer_resync result=fail reason=family3");
+            return false;
+        }
+        currentQueuez = rosterAfter;
+    }
+    if (framedSize == 0 || framedSize > response.size() || !queuez::valid(currentQueuez)) {
+        core::log::write(core::log::Channel::server,
+                         core::log::Level::warn,
+                         "ev=queuez stage=peer_resync result=fail reason=output");
+        return false;
+    }
+    std::copy_n(scratch.framed.begin(), framedSize, response.begin());
+    written = framedSize;
+    session.sendNonce = nextSendNonce;
+    session.queuez = currentQueuez;
+    session.accountGeneration = session.accountResyncGeneration;
+    session.accountResyncArmed = false;
+    report_repush("peer_resync", framedSize);
+    return true;
+}
+
 /**
  * Sends the owed banner re-push once its delay has passed.
  * The banner has no subscribe of its own, so the timer is its only second chance.
@@ -105,6 +178,13 @@ bool consume_deferred(Session& session,
                       bool& touchesScratch) noexcept {
     written = 0;
     if (!session.authenticated) {
+        return false;
+    }
+    if (consume_account_resync(session, scratch, response, written, touchesScratch)) {
+        return true;
+    }
+    // A failed resync remains armed and blocks unrelated deferred output until it can be retried.
+    if (session.accountResyncArmed) {
         return false;
     }
     if (!session.family4RepushArmed || session.family4RepushRoot == 0

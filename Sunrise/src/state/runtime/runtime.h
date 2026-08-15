@@ -107,8 +107,8 @@ struct DismantleReward {
     std::int32_t mutationSerial{};
 };
 
-/** Dismantles currently publish the ordinary gear material pair in one native pickup bank. */
-inline constexpr std::size_t kDismantleRewardCapacity = 2;
+/** Dismantle feedback can publish every bounded server-authored policy row. */
+inline constexpr std::size_t kDismantleRewardCapacity = kDismantleRewardPolicyCapacity;
 
 /** Prepared selected-character inventory removal kept private until its reply and push fit. */
 struct PendingItemDismantle {

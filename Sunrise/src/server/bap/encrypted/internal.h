@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <span>
 #include <string_view>
+#include <variant>
 
 #include "../../../middleware/bap/family_unsubscription.h"
 #include "../../../middleware/bap/frame.h"
@@ -33,6 +34,42 @@ enum class BodyCodec : std::uint8_t {
     webService,
 };
 
+/** Equipment mutation and the exact QueueZ after-image promised by its response. */
+struct EquipmentSwapTransaction {
+    state::PendingEquipmentSwap pending{};
+    queuez::EquipmentSwap update{};
+};
+
+/** Socket mutation and the exact QueueZ after-image promised by its response. */
+struct SocketPlugTransaction {
+    state::PendingSocketPlug pending{};
+    queuez::SocketPlug update{};
+};
+
+/** Item-state mutation and the exact QueueZ character after-image promised by its response. */
+struct ItemStateTransaction {
+    state::PendingItemState pending{};
+    queuez::EquipmentSwap update{};
+};
+
+/** Character acquisition and its exact QueueZ after-image. */
+struct ItemAcquisitionTransaction {
+    state::PendingItemAcquisition pending{};
+    queuez::ItemAcquisition update{};
+};
+
+/** Profile acquisition and its exact account/resident QueueZ after-image. */
+struct ProfileItemAcquisitionTransaction {
+    state::PendingProfileItemAcquisition pending{};
+    queuez::ProfileItemAcquisition update{};
+};
+
+/** Dismantle mutation and its exact QueueZ after-image. */
+struct ItemDismantleTransaction {
+    state::PendingItemDismantle pending{};
+    queuez::ItemDismantle update{};
+};
+
 /** Optional side effect produced while decoding one authenticated service body. */
 struct ServiceOutcome {
     bool hasSubscription{};
@@ -43,38 +80,31 @@ struct ServiceOutcome {
     queuez::ChangeCharacter changeCharacter{};
     bool hasSelectCharacter{};
     queuez::SelectCharacter selectCharacter{};
-    bool hasEquipmentSwap{};
-    state::PendingEquipmentSwap equipmentSwap{};
-    /** Exact Queuez after-image promised by the opcode-403 status value. */
-    queuez::EquipmentSwap equipmentSwapUpdate{};
-    bool hasSocketPlug{};
-    state::PendingSocketPlug socketPlug{};
-    /** Exact Queuez item-instance revision promised by the opcode-903 status value. */
-    queuez::SocketPlug socketPlugUpdate{};
-    bool hasItemState{};
-    state::PendingItemState itemState{};
-    /** Exact Queuez character revision promised by opcode 406. */
-    queuez::EquipmentSwap itemStateUpdate{};
-    bool hasItemAcquisition{};
-    state::PendingItemAcquisition itemAcquisition{};
-    /** Exact Queuez after-image promised by the item-creation status value. */
-    queuez::ItemAcquisition itemAcquisitionUpdate{};
-    bool hasProfileItemAcquisition{};
-    state::PendingProfileItemAcquisition profileItemAcquisition{};
-    /** Exact Queuez account revision and optional resident append promised by profile acquisition.
-     */
-    queuez::ProfileItemAcquisition profileItemAcquisitionUpdate{};
-    bool hasItemDismantle{};
-    state::PendingItemDismantle itemDismantle{};
-    /** Exact Queuez after-image promised by the dismantle status value. */
-    queuez::ItemDismantle itemDismantleUpdate{};
-    bool hasActivitySessionAllocation{};
-    state::activity::PendingAllocation activitySessionAllocation{};
-    bool hasActivityTransaction{};
-    activity_message::ActivityPlan activityPlan{};
-    bool hasMatchmakingMutation{};
-    state::matchmaking::PendingMutation matchmakingMutation{};
+    /** One service owns at most one independently versioned transaction. */
+    using Transaction = std::variant<std::monostate,
+                                     state::activity::PendingAllocation,
+                                     activity_message::ActivityPlan,
+                                     state::matchmaking::PendingMutation,
+                                     EquipmentSwapTransaction,
+                                     SocketPlugTransaction,
+                                     ItemStateTransaction,
+                                     ItemAcquisitionTransaction,
+                                     ProfileItemAcquisitionTransaction,
+                                     ItemDismantleTransaction>;
+    Transaction transaction{};
 };
+
+/** @return The service transaction of the requested type, or null for another route. */
+template <typename Transaction>
+[[nodiscard]] Transaction* transaction_if(ServiceOutcome& outcome) noexcept {
+    return std::get_if<Transaction>(&outcome.transaction);
+}
+
+/** @return The service transaction of the requested type, or null for another route. */
+template <typename Transaction>
+[[nodiscard]] const Transaction* transaction_if(const ServiceOutcome& outcome) noexcept {
+    return std::get_if<Transaction>(&outcome.transaction);
+}
 
 /** Outbound delivery behavior picked for one authenticated request service. */
 enum class ResponseMode : std::uint8_t {
@@ -182,6 +212,16 @@ void append_queuez_notification(Scratch& scratch,
                                 std::size_t& written,
                                 queuez::SessionState& after,
                                 bool& armsRepush) noexcept;
+
+/** Appends one next-version full Family-4 snapshot used to resynchronize another peer. */
+[[nodiscard]] bool
+append_account_resync_notification(Scratch& scratch,
+                                   const queuez::SessionState& before,
+                                   std::span<const std::byte, state::kAesKeySize> key,
+                                   std::array<std::byte, state::kBapNonceSize>& nonce,
+                                   std::span<std::byte> response,
+                                   std::size_t& written,
+                                   queuez::SessionState& after) noexcept;
 
 /**
  * Appends the family-zero banner pair as its own notification.
@@ -327,6 +367,26 @@ append_socket_roster_refresh_notification(Scratch& scratch,
                                           std::array<std::byte, state::kBapNonceSize>& nonce,
                                           std::span<std::byte> response,
                                           std::size_t& written) noexcept;
+
+/** Refreshes the selected character's complete Family-0 appearance from committed State. */
+[[nodiscard]] bool
+append_account_resync_appearance_notification(Scratch& scratch,
+                                              const queuez::SessionState& before,
+                                              std::span<const std::byte, state::kAesKeySize> key,
+                                              std::array<std::byte, state::kBapNonceSize>& nonce,
+                                              std::span<std::byte> response,
+                                              std::size_t& written,
+                                              queuez::SessionState& after) noexcept;
+
+/** Refreshes the selected character and account roster from committed State. */
+[[nodiscard]] bool
+append_account_resync_roster_notification(Scratch& scratch,
+                                          const queuez::SessionState& before,
+                                          std::span<const std::byte, state::kAesKeySize> key,
+                                          std::array<std::byte, state::kBapNonceSize>& nonce,
+                                          std::span<std::byte> response,
+                                          std::size_t& written,
+                                          queuez::SessionState& after) noexcept;
 
 /** Appends the opcode-903 Family-4 item-instance upsert exposing one socket selection. */
 [[nodiscard]] bool

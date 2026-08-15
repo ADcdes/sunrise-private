@@ -129,6 +129,16 @@
     },
     "account": {
       "primary_soid": "0x9EAA300100100100",
+      "dismantle_rewards": [
+        {
+          "definition_hash": "0x3CF2E8E2",
+          "quantity": 4
+        },
+        {
+          "definition_hash": "0x28D6AC07",
+          "quantity": 3
+        }
+      ],
       "profile_items": [
         {
           "definition_hash": "0xBC53E66E",

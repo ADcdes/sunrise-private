@@ -54,6 +54,16 @@ struct Prepared {
                                    Prepared& prepared) noexcept;
 
 /**
+ * Rebuilds the active account family as a full snapshot at the peer's next version.
+ * This is
+ * used only to repair another authenticated peer after shared State changes.
+ */
+[[nodiscard]] bool prepare_family4_refresh(Scratch& scratch,
+                                           std::uint64_t familyRootSoid,
+                                           std::int32_t version,
+                                           Prepared& prepared) noexcept;
+
+/**
  * Builds the family-zero banner anchor and the record for the character it names.
  * @param scratch Raw object storage owned by the lock.
  * @param familyRootSoid Root the Client subscribed for the roster.

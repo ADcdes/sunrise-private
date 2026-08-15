@@ -47,16 +47,27 @@ bool process(const ServiceRoute& route,
         return middleware::bap::account_translation::encode_response(
             requestBody, account.primarySoid, output, written);
     }
-    case BodyCodec::activityHostManagerResponse:
-        return activity_host_manager::encode_response(requestBody,
-                                                      output,
-                                                      written,
-                                                      outcome.activitySessionAllocation,
-                                                      outcome.hasActivitySessionAllocation);
-    case BodyCodec::activityMessageRequest:
+    case BodyCodec::activityHostManagerResponse: {
+        state::activity::PendingAllocation allocation{};
+        bool hasAllocation = false;
+        const bool encoded = activity_host_manager::encode_response(
+            requestBody, output, written, allocation, hasAllocation);
+        if (encoded && hasAllocation) {
+            outcome.transaction = allocation;
+        }
+        return encoded;
+    }
+    case BodyCodec::activityMessageRequest: {
         written = 0;
-        return activity_message::process(
-            activitySessionId, requestBody, outcome.activityPlan, outcome.hasActivityTransaction);
+        activity_message::ActivityPlan plan{};
+        bool hasTransaction = false;
+        const bool processed =
+            activity_message::process(activitySessionId, requestBody, plan, hasTransaction);
+        if (processed && hasTransaction) {
+            outcome.transaction = plan;
+        }
+        return processed;
+    }
     case BodyCodec::activityHostResponse: {
         const state::SignOnState& signOn = state::sign_on();
         return middleware::bap::activity_host::encode_response(
@@ -75,13 +86,16 @@ bool process(const ServiceRoute& route,
             middleware::bap::family_unsubscription::parse(requestBody, outcome.unsubscription);
         return outcome.hasUnsubscription;
     }
-    case BodyCodec::matchmakingResponse:
-        return matchmaking::encode_response(matchmakingContext,
-                                            requestBody,
-                                            output,
-                                            written,
-                                            outcome.matchmakingMutation,
-                                            outcome.hasMatchmakingMutation);
+    case BodyCodec::matchmakingResponse: {
+        state::matchmaking::PendingMutation mutation{};
+        bool hasMutation = false;
+        const bool encoded = matchmaking::encode_response(
+            matchmakingContext, requestBody, output, written, mutation, hasMutation);
+        if (encoded && hasMutation) {
+            outcome.transaction = mutation;
+        }
+        return encoded;
+    }
     case BodyCodec::steamCertificate:
         return middleware::bap::certificate::encode_response(requestBody, output, written);
     case BodyCodec::userMessageResponse:
@@ -116,23 +130,33 @@ bool process(const ServiceRoute& route,
         }
         outcome.hasSubscription = webOutcome.hasSubscription;
         outcome.subscription = webOutcome.subscription;
-        if (webOutcome.hasEquipmentSwap) {
+        const auto* equipmentSwap =
+            web_service::mutation_if<state::PendingEquipmentSwap>(webOutcome);
+        const auto* socketPlug = web_service::mutation_if<state::PendingSocketPlug>(webOutcome);
+        const auto* itemState = web_service::mutation_if<state::PendingItemState>(webOutcome);
+        const auto* itemAcquisition =
+            web_service::mutation_if<state::PendingItemAcquisition>(webOutcome);
+        const auto* profileItemAcquisition =
+            web_service::mutation_if<state::PendingProfileItemAcquisition>(webOutcome);
+        const auto* itemDismantle =
+            web_service::mutation_if<state::PendingItemDismantle>(webOutcome);
+        if (equipmentSwap != nullptr) {
             // Equip is an optimistic Character-screen action. Its status-pair value is the exact
             // Family-4 revision whose following Queuez frame makes the action authoritative. Stage
             // that revision before encoding the reply so the Client cannot complete the action
             // against the old object store.
-            if (!queuez::stage_equipment_swap(queuezState,
-                                              webOutcome.equipmentSwap.characterSoid,
-                                              outcome.equipmentSwapUpdate)) {
+            auto& transaction = outcome.transaction.emplace<EquipmentSwapTransaction>();
+            if (!queuez::stage_equipment_swap(
+                    queuezState, equipmentSwap->characterSoid, transaction.update)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=ws403 stage=queuez_preflight result=fail");
                 // Keep the already-encoded sentinel response and publish no mutation, matching
                 // the change-character failure contract instead of dropping the correlated task.
-                outcome.equipmentSwapUpdate = {};
+                outcome.transaction = std::monostate{};
             } else {
                 middleware::web_service::StatusResponse status{};
-                status.value = outcome.equipmentSwapUpdate.after.family4Version;
+                status.value = transaction.update.after.family4Version;
                 if (!middleware::web_service::encode_response(
                         message,
                         middleware::web_service::ResponseShape::statusPair,
@@ -145,26 +169,26 @@ bool process(const ServiceRoute& route,
                     return false;
                 }
                 web_service::report_equip_response(message, status.value, output.first(written));
-                outcome.hasEquipmentSwap = true;
-                outcome.equipmentSwap = webOutcome.equipmentSwap;
+                transaction.pending = *equipmentSwap;
             }
         }
-        if (webOutcome.hasSocketPlug) {
+        if (socketPlug != nullptr) {
             // Opcode 903 completes at the exact Family-4 revision carrying the changed resident
             // item instance. The resident manifest and character placement remain unchanged.
+            auto& transaction = outcome.transaction.emplace<SocketPlugTransaction>();
             if (!queuez::stage_socket_plug(queuezState,
-                                           webOutcome.socketPlug.accountSoid,
-                                           webOutcome.socketPlug.characterSoid,
-                                           webOutcome.socketPlug.targetInstanceSoid,
-                                           webOutcome.socketPlug.profileChanged,
-                                           outcome.socketPlugUpdate)) {
+                                           socketPlug->accountSoid,
+                                           socketPlug->characterSoid,
+                                           socketPlug->targetInstanceSoid,
+                                           socketPlug->profileChanged,
+                                           transaction.update)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=socket_plug stage=queuez_preflight result=fail");
-                outcome.socketPlugUpdate = {};
+                outcome.transaction = std::monostate{};
             } else {
                 middleware::web_service::StatusResponse status{};
-                status.value = outcome.socketPlugUpdate.after.family4Version;
+                status.value = transaction.update.after.family4Version;
                 if (!middleware::web_service::encode_response(
                         message,
                         middleware::web_service::ResponseShape::statusPair,
@@ -178,26 +202,26 @@ bool process(const ServiceRoute& route,
                 }
                 web_service::report_socket_plug_response(message,
                                                          status.value,
-                                                         webOutcome.socketPlug.targetInstanceSoid,
-                                                         webOutcome.socketPlug.socketLane,
-                                                         webOutcome.socketPlug.plugDefinitionIndex,
+                                                         socketPlug->targetInstanceSoid,
+                                                         socketPlug->socketLane,
+                                                         socketPlug->plugDefinitionIndex,
                                                          output.first(written));
-                outcome.hasSocketPlug = true;
-                outcome.socketPlug = webOutcome.socketPlug;
+                transaction.pending = *socketPlug;
             }
         }
-        if (webOutcome.hasItemState) {
+        if (itemState != nullptr) {
             // Opcode 406 completes at the exact Family-4 revision carrying the changed inventory
             // row flags. Placement and every resident item-instance body remain unchanged.
+            auto& transaction = outcome.transaction.emplace<ItemStateTransaction>();
             if (!queuez::stage_equipment_swap(
-                    queuezState, webOutcome.itemState.characterSoid, outcome.itemStateUpdate)) {
+                    queuezState, itemState->characterSoid, transaction.update)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=item_state stage=queuez_preflight result=fail");
-                outcome.itemStateUpdate = {};
+                outcome.transaction = std::monostate{};
             } else {
                 middleware::web_service::StatusResponse status{};
-                status.value = outcome.itemStateUpdate.after.family4Version;
+                status.value = transaction.update.after.family4Version;
                 if (!middleware::web_service::encode_response(
                         message,
                         middleware::web_service::ResponseShape::statusPair,
@@ -209,27 +233,27 @@ bool process(const ServiceRoute& route,
                                      "ev=item_state stage=response result=fail");
                     return false;
                 }
-                outcome.hasItemState = true;
-                outcome.itemState = webOutcome.itemState;
+                transaction.pending = *itemState;
             }
         }
-        if (webOutcome.hasItemAcquisition) {
+        if (itemAcquisition != nullptr) {
             // A Collections pull is complete only at the exact Family-4 revision that adds both
             // the inventory row and its newly resident instance object. Stage that revision before
             // re-encoding the correlated status pair, just like an equipment swap.
+            auto& transaction = outcome.transaction.emplace<ItemAcquisitionTransaction>();
             if (!queuez::stage_item_acquisition(queuezState,
-                                                webOutcome.itemAcquisition.accountSoid,
-                                                webOutcome.itemAcquisition.characterSoid,
-                                                webOutcome.itemAcquisition.acquiredInstanceSoid,
-                                                webOutcome.itemAcquisition.profileChanged,
-                                                outcome.itemAcquisitionUpdate)) {
+                                                itemAcquisition->accountSoid,
+                                                itemAcquisition->characterSoid,
+                                                itemAcquisition->acquiredInstanceSoid,
+                                                itemAcquisition->profileChanged,
+                                                transaction.update)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=acquire stage=queuez_preflight result=fail");
-                outcome.itemAcquisitionUpdate = {};
+                outcome.transaction = std::monostate{};
             } else {
                 middleware::web_service::StatusResponse status{};
-                status.value = outcome.itemAcquisitionUpdate.after.family4Version;
+                status.value = transaction.update.after.family4Version;
                 if (!middleware::web_service::encode_response(
                         message,
                         middleware::web_service::ResponseShape::statusPair,
@@ -241,33 +265,32 @@ bool process(const ServiceRoute& route,
                                      "ev=acquire stage=response result=fail");
                     return false;
                 }
-                web_service::report_item_acquisition_response(
-                    message,
-                    status.value,
-                    webOutcome.itemAcquisition.acquiredInstanceSoid,
-                    output.first(written));
-                outcome.hasItemAcquisition = true;
-                outcome.itemAcquisition = webOutcome.itemAcquisition;
+                web_service::report_item_acquisition_response(message,
+                                                              status.value,
+                                                              itemAcquisition->acquiredInstanceSoid,
+                                                              output.first(written));
+                transaction.pending = *itemAcquisition;
             }
         }
-        if (webOutcome.hasProfileItemAcquisition) {
+        if (profileItemAcquisition != nullptr) {
             // Profile stacks live in the account body. Actionable shaders/modifications also name
             // a Family-4 item resident: an existing stack must already own it, while a newly
             // appended row adds it atomically at this exact +1 revision.
+            auto& transaction = outcome.transaction.emplace<ProfileItemAcquisitionTransaction>();
             if (!queuez::stage_profile_item_acquisition(
                     queuezState,
-                    webOutcome.profileItemAcquisition.accountSoid,
-                    webOutcome.profileItemAcquisition.acquiredInstanceSoid,
-                    webOutcome.profileItemAcquisition.actionSource,
-                    webOutcome.profileItemAcquisition.appended,
-                    outcome.profileItemAcquisitionUpdate)) {
+                    profileItemAcquisition->accountSoid,
+                    profileItemAcquisition->acquiredInstanceSoid,
+                    profileItemAcquisition->actionSource,
+                    profileItemAcquisition->appended,
+                    transaction.update)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=profile_acquire stage=queuez_preflight result=fail");
-                outcome.profileItemAcquisitionUpdate = {};
+                outcome.transaction = std::monostate{};
             } else {
                 middleware::web_service::StatusResponse status{};
-                status.value = outcome.profileItemAcquisitionUpdate.after.family4Version;
+                status.value = transaction.update.after.family4Version;
                 if (!middleware::web_service::encode_response(
                         message,
                         middleware::web_service::ResponseShape::statusPair,
@@ -282,31 +305,31 @@ bool process(const ServiceRoute& route,
                 web_service::report_profile_item_acquisition_response(
                     message,
                     status.value,
-                    webOutcome.profileItemAcquisition.acquiredDefinitionHash,
-                    webOutcome.profileItemAcquisition.acquiredQuantity,
+                    profileItemAcquisition->acquiredDefinitionHash,
+                    profileItemAcquisition->acquiredQuantity,
                     output.first(written));
-                outcome.hasProfileItemAcquisition = true;
-                outcome.profileItemAcquisition = webOutcome.profileItemAcquisition;
+                transaction.pending = *profileItemAcquisition;
             }
         }
-        if (webOutcome.hasItemDismantle) {
+        if (itemDismantle != nullptr) {
             // Dismantle is another optimistic Character-screen action. Promise only the exact
             // Family-4 revision that carries both the character after-image and the empty
             // item-instance release descriptor; otherwise retain the generic sentinel reply and
             // publish no removal.
+            auto& transaction = outcome.transaction.emplace<ItemDismantleTransaction>();
             if (!queuez::stage_item_dismantle(queuezState,
-                                              webOutcome.itemDismantle.accountSoid,
-                                              webOutcome.itemDismantle.characterSoid,
-                                              webOutcome.itemDismantle.dismantledInstanceSoid,
-                                              webOutcome.itemDismantle.profileChanged,
-                                              outcome.itemDismantleUpdate)) {
+                                              itemDismantle->accountSoid,
+                                              itemDismantle->characterSoid,
+                                              itemDismantle->dismantledInstanceSoid,
+                                              itemDismantle->profileChanged,
+                                              transaction.update)) {
                 core::log::write(core::log::Channel::server,
                                  core::log::Level::warn,
                                  "ev=dismantle stage=queuez_preflight result=fail");
-                outcome.itemDismantleUpdate = {};
+                outcome.transaction = std::monostate{};
             } else {
                 middleware::web_service::StatusResponse status{};
-                status.value = outcome.itemDismantleUpdate.after.family4Version;
+                status.value = transaction.update.after.family4Version;
                 if (!middleware::web_service::encode_response(
                         message,
                         middleware::web_service::ResponseShape::statusPair,
@@ -318,13 +341,11 @@ bool process(const ServiceRoute& route,
                                      "ev=dismantle stage=response result=fail");
                     return false;
                 }
-                web_service::report_item_dismantle_response(
-                    message,
-                    status.value,
-                    webOutcome.itemDismantle.dismantledInstanceSoid,
-                    output.first(written));
-                outcome.hasItemDismantle = true;
-                outcome.itemDismantle = webOutcome.itemDismantle;
+                web_service::report_item_dismantle_response(message,
+                                                            status.value,
+                                                            itemDismantle->dismantledInstanceSoid,
+                                                            output.first(written));
+                transaction.pending = *itemDismantle;
             }
         }
         // A pick that names the resident character moves nothing, so staging refuses it and the

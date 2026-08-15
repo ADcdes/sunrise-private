@@ -87,6 +87,14 @@ struct Session {
     std::uint64_t bannerRepushRoot{};
     /** True while one banner re-push is still owed to this peer. */
     bool bannerRepushArmed{};
+    /** Latest shared-account generation this peer has received. */
+    std::uint64_t accountGeneration{};
+    /** Newest shared-account generation owed as a full cross-peer refresh. */
+    std::uint64_t accountResyncGeneration{};
+    /** Set by encrypted processing only after one account mutation commits and is copied out. */
+    bool accountMutationPublished{};
+    /** True while another peer's account mutation still needs a full local refresh. */
+    bool accountResyncArmed{};
 };
 
 namespace plaintext {

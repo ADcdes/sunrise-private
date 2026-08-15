@@ -22,6 +22,11 @@ namespace sunrise::server::bap::encrypted::queuez {
                                           const middleware::queuez::Family& family,
                                           SessionState& after) noexcept;
 
+/** Replaces an active peer's Family-4 manifest with a full next-version snapshot. */
+[[nodiscard]] bool stage_family4_refresh(const SessionState& before,
+                                         const middleware::queuez::Family& family,
+                                         SessionState& after) noexcept;
+
 /**
  * Decides whether one family-zero subscription publishes, and as which kind of frame.
  * Retail sets the full-snapshot flag once per family and adds one to every later push, so a

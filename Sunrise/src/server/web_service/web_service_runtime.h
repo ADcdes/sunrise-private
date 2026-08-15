@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <variant>
 
 #include "../../middleware/web_service/messages/opcode206.h"
 #include "../../state/runtime/runtime.h"
@@ -16,25 +17,22 @@ struct Outcome {
     /** An opcode-504 pick moved the selection and its Family-4 object still has to follow. */
     bool hasSelectedCharacter{};
     std::uint64_t selectedCharacterSoid{};
-    /** Opcode 403/404 prepared one checked equipment mutation for the BAP transaction. */
-    bool hasEquipmentSwap{};
-    state::PendingEquipmentSwap equipmentSwap{};
-    /** An item-creation route prepared one checked selected-character inventory insertion. */
-    bool hasItemAcquisition{};
-    state::PendingItemAcquisition itemAcquisition{};
-    /** Opcode 1820 prepared one account-profile stack increment or insertion. */
-    bool hasProfileItemAcquisition{};
-    state::PendingProfileItemAcquisition profileItemAcquisition{};
-    /** Opcode 402 prepared one checked selected-character inventory removal. */
-    bool hasItemDismantle{};
-    state::PendingItemDismantle itemDismantle{};
-    /** Opcode 903 or 1901 prepared one exact selected-character ordinary-socket selection. */
-    bool hasSocketPlug{};
-    state::PendingSocketPlug socketPlug{};
-    /** Opcode 406 prepared one complete accumulated item-state value. */
-    bool hasItemState{};
-    state::PendingItemState itemState{};
+    /** A request prepares at most one State mutation; the alternative owns only that payload. */
+    using Mutation = std::variant<std::monostate,
+                                  state::PendingEquipmentSwap,
+                                  state::PendingItemAcquisition,
+                                  state::PendingProfileItemAcquisition,
+                                  state::PendingItemDismantle,
+                                  state::PendingSocketPlug,
+                                  state::PendingItemState>;
+    Mutation mutation{};
 };
+
+/** @return The prepared mutation of the requested type, or null when another route ran. */
+template <typename Mutation>
+[[nodiscard]] const Mutation* mutation_if(const Outcome& outcome) noexcept {
+    return std::get_if<Mutation>(&outcome.mutation);
+}
 
 /** Records the final opcode-403/404 reply after its paired Family-4 version is known. */
 void report_equip_response(const middleware::web_service::Message& message,

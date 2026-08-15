@@ -1,4 +1,5 @@
 #include <array>
+#include <limits>
 
 #include "../../../../../core/logging/log.h"
 #include "../../../../../middleware/datagen/definitions.h"
@@ -79,6 +80,44 @@ namespace {
 }
 
 } // namespace
+
+/** Appends one current full account snapshot at the peer's next Family-4 version. */
+bool append_account_resync_notification(Scratch& scratch,
+                                        const queuez::SessionState& before,
+                                        std::span<const std::byte, state::kAesKeySize> key,
+                                        std::array<std::byte, state::kBapNonceSize>& nonce,
+                                        std::span<std::byte> response,
+                                        std::size_t& written,
+                                        queuez::SessionState& after) noexcept {
+    after = before;
+    if (!queuez::valid(before) || !before.family4Active || before.family4RootSoid == 0
+        || before.family4Version == (std::numeric_limits<std::int32_t>::max)()) {
+        return false;
+    }
+    snapshot::Prepared prepared{};
+    if (!snapshot::prepare_family4_refresh(
+            scratch, before.family4RootSoid, before.family4Version + 1, prepared)
+        || !queuez::stage_family4_refresh(before, prepared.family, after)) {
+        return false;
+    }
+    const std::size_t objectCount = prepared.family.objects.size();
+    const std::size_t beforeBytes = written;
+    if (!queuez_frame::append(scratch,
+                              prepared.family,
+                              prepared.rawClearSize,
+                              prepared.compressedClearSize,
+                              key,
+                              nonce,
+                              response,
+                              written)) {
+        after = before;
+        return false;
+    }
+    middleware::secure_channel::advance_nonce(nonce);
+    queuez_report::push(
+        "peer_resync", queuez::kAccountFamilyType, objectCount, written - beforeBytes, 1);
+    return true;
+}
 
 /**
  * Stages the snapshots one subscription needs.
