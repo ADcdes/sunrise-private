@@ -47,7 +47,7 @@ valid_socket_plug_links(std::span<const items::socket_plugs::Rule> rules,
  * @return True when each row has its own ordinal and every available item link exists.
  */
 [[nodiscard]] bool
-valid_collectible_links(std::span<const collectibles::Definition> collectibles,
+valid_collectible_links(std::span<const collectibles::Definition> collectibleDefinitions,
                         std::span<const items::Definition> itemDefinitions) noexcept;
 
 /** @param domains Complete sorted domains. @return True when every domain passes its checks. */

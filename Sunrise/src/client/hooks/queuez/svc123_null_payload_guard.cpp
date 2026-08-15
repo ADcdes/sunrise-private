@@ -55,9 +55,8 @@ std::atomic_bool g_reported{false};
  * @param message Borrowed message record, or null.
  * @return The handler's own result, or the not-handled verdict for a skipped message.
  */
-__declspec(noinline) char __fastcall handler(void* self,
-                                             void* context,
-                                             std::byte* message) noexcept {
+__declspec(noinline) char __fastcall
+handler(void* self, void* context, std::byte* message) noexcept {
     std::uintptr_t payload = 0;
     if (message != nullptr) {
         std::memcpy(&payload, message + MessageLayout::payload, sizeof payload);
