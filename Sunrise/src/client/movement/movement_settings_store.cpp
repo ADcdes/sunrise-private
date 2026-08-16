@@ -1,6 +1,10 @@
-// Runtime-safe movement settings persisted beside the module after every interface change.
+/**
+ * The movement configuration store. It is separate from Core settings because the interface
+ * changes these values while the game runs and saves each change at once. Core settings are
+ * read once and never change after that.
+ */
 
-#include "teleport_settings_store.h"
+#include "movement_settings_store.h"
 
 #include <Windows.h>
 
@@ -13,11 +17,11 @@
 #include "../../core/filesystem/path.h"
 #include "../../core/logging/log.h"
 
-namespace sunrise::client::teleport {
+namespace sunrise::client::movement {
 namespace {
 
 /** The module-owned configuration file, beside the generated settings and logs. */
-constexpr std::wstring_view kFileSuffix = L"\\teleport.json";
+constexpr std::wstring_view kFileSuffix = L"\\movement.json";
 /** The document is a few scalars, so one small buffer covers both reading and writing. */
 constexpr std::size_t kFileCapacity = 512;
 /** Longest scalar accepted from the file. Anything longer is malformed rather than large. */
@@ -41,7 +45,7 @@ bool g_pathResolved{};
 void report_fail(const char* reason) noexcept {
     std::array<char, 96> line{};
     const int written = std::snprintf(
-        line.data(), line.size(), "ev=teleport stage=store result=fail reason=%s", reason);
+        line.data(), line.size(), "ev=movement stage=store result=fail reason=%s", reason);
     if (written > 0) {
         core::log::write(core::log::Channel::client,
                          core::log::Level::warn,
@@ -245,4 +249,4 @@ bool publish(const Settings& settings) noexcept {
     return true;
 }
 
-} // namespace sunrise::client::teleport
+} // namespace sunrise::client::movement

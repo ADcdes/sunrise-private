@@ -39,7 +39,8 @@ inline constexpr std::uint16_t kClientLeaseMinimum = 4096;
  * datagram lands after the Client's egress rewrite. Both carry the same port.
  */
 struct Settings {
-    Topology topology{Topology::disabled};
+    /** Embedded by default. Public activities reach each other over the peer protocol. */
+    Topology topology{Topology::embedded};
     /** Local interface the embedded endpoint binds. */
     std::array<unsigned char, kAddressOctets> bindAddress{127, 0, 0, 1};
     /** Address written into the published descriptor. */

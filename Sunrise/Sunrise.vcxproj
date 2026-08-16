@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -188,8 +188,8 @@
     <ClCompile Include="src\client\hooks\egress\winsock\transmission\egress_datagram_transmission.cpp" />
     <ClCompile Include="src\client\hooks\egress\winsock\transmission\egress_message_transmission.cpp" />
     <ClCompile Include="src\client\ui\runtime\client_ui_module_runtime.cpp" />
-    <ClCompile Include="src\client\ui\teleport\teleport_panel.cpp" />
-    <ClCompile Include="src\client\teleport\teleport_settings_store.cpp" />
+    <ClCompile Include="src\client\ui\movement\movement_panel.cpp" />
+    <ClCompile Include="src\client\movement\movement_settings_store.cpp" />
     <ClCompile Include="src\client\hooks\noclip\horizontal_noclip.cpp" />
     <ClCompile Include="src\client\hooks\teleport\teleport_lifecycle.cpp" />
     <ClCompile Include="src\client\hooks\teleport\teleport_move.cpp" />
@@ -723,11 +723,11 @@
     <ClInclude Include="src\core\ui\layout\navigation\ui_layout_navigation.h" />
     <ClInclude Include="src\core\ui\layout\credits\sunrise_credits_badge.h" />
     <ClInclude Include="src\client\runtime\runtime.h" />
-    <ClInclude Include="src\client\teleport\teleport_settings_store.h" />
+    <ClInclude Include="src\client\movement\movement_settings_store.h" />
     <ClInclude Include="src\client\hooks\noclip\runtime.h" />
     <ClInclude Include="src\client\hooks\teleport\internal.h" />
     <ClInclude Include="src\client\hooks\teleport\runtime.h" />
-    <ClInclude Include="src\client\ui\teleport\teleport_panel.h" />
+    <ClInclude Include="src\client\ui\movement\movement_panel.h" />
     <ClInclude Include="src\client\runtime\internal.h" />
     <ClInclude Include="src\client\runtime\host\game_host_classification.h" />
     <ClInclude Include="src\client\hooks\graphics\graphics_hook_lifecycle.h" />

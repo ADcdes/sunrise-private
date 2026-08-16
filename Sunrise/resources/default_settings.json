@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "core": {
     "logging": {
       "debugger_sink": true,
@@ -32,7 +32,7 @@
     },
     "fade_release": true,
     "force_join_request_ready": true,
-    "region_private": true,
+    "region_private": false,
     "pin_replicated_record": true,
     "hold_spawn": true,
     "spawn_hold_ms": 30000
@@ -40,7 +40,7 @@
   "server": {
     "bap_port": 30974,
     "gameplay": {
-      "topology": "disabled",
+      "topology": "embedded",
       "bind_address": "127.0.0.1",
       "advertised_address": "127.0.0.1",
       "transport_address": "127.0.0.1",

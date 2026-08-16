@@ -44,6 +44,10 @@ endif()
 target_include_directories(steam_api64
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Sunrise/src"
 )
+# sunrise.rc names its payloads relative to itself, so its directory has to be on the include path.
+target_include_directories(steam_api64
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Sunrise/resources"
+)
 target_include_directories(steam_api64 SYSTEM PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Sunrise/vendor/detours"
     "${CMAKE_CURRENT_SOURCE_DIR}/Sunrise/vendor/imgui"

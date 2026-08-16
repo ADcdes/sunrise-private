@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdio>
@@ -28,6 +29,8 @@ constexpr std::wstring_view kPreviousLogSuffix = L".old";
 constexpr std::string_view kLineEnding = "\r\n";
 /** One trailing null byte is kept for the debugger sink. */
 constexpr std::size_t kLineTerminatorBytes = 1;
+/** An elapsed line is one event, a duration and an outcome, so it needs less than a full line. */
+constexpr std::size_t kElapsedCapacity = 128;
 /** Event text stops before the CRLF and the trailing null. */
 constexpr std::size_t kEventTextCapacity =
     kLineCapacity - kLineEnding.size() - kLineTerminatorBytes;
@@ -242,6 +245,33 @@ void write(Channel channel, Level level, std::string_view event) noexcept {
     // Record after sink writes while the shared lifetime lock still excludes shutdown reset.
     snapshot::internal::record(channel, level, std::string_view(line.data(), snapshotLength));
     ReleaseSRWLockShared(&g_log.lock);
+}
+
+/** Formats and emits one debug event carrying a duration in the ms field. */
+void write_elapsed(Channel channel,
+                   std::string_view event,
+                   unsigned long long startedTick,
+                   std::string_view result) noexcept {
+    if (!accepts(channel, Level::debug)) {
+        return;
+    }
+    const unsigned long long elapsed = GetTickCount64() - startedTick;
+    std::array<char, kElapsedCapacity> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "%.*s ms=%llu result=%.*s",
+                                      static_cast<int>(event.size()),
+                                      event.data(),
+                                      elapsed,
+                                      static_cast<int>(result.size()),
+                                      result.data());
+    if (written <= 0) {
+        return;
+    }
+    // snprintf reports the length before truncation, so the emitted view is clamped to the buffer.
+    const auto length =
+        std::min(static_cast<std::size_t>(written), line.size() - kLineTerminatorBytes);
+    write(channel, Level::debug, {line.data(), length});
 }
 
 /** @return True while a sink write is in progress. */

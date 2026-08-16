@@ -1,6 +1,9 @@
-// Movement controls whose changes are persisted immediately.
+/**
+ * The movement module's interface. Every control saves to disk at once, so a change made here
+ * survives the next launch with no settings edit.
+ */
 
-#include "teleport_panel.h"
+#include "movement_panel.h"
 
 #include <Windows.h>
 
@@ -9,10 +12,9 @@
 #include <imgui.h>
 
 #include "../../../core/ui/components/toggle/ui_toggle_component.h"
-#include "../../hooks/noclip/runtime.h"
-#include "../../teleport/teleport_settings_store.h"
+#include "../../movement/movement_settings_store.h"
 
-namespace sunrise::client::ui::teleport {
+namespace sunrise::client::ui::movement {
 namespace {
 
 /** Lowest and highest virtual keys the picker scans. Zero is not a key. */
@@ -37,7 +39,7 @@ CaptureTarget g_capturing{CaptureTarget::none};
  * @param output Receives the name.
  */
 void key_name(std::uint32_t virtualKey, std::array<char, kKeyNameCapacity>& output) noexcept {
-    if (virtualKey == client::teleport::kNoKey) {
+    if (virtualKey == client::movement::kNoKey) {
         (void)std::snprintf(output.data(), output.size(), "None");
         return;
     }
@@ -69,7 +71,7 @@ void key_name(std::uint32_t virtualKey, std::array<char, kKeyNameCapacity>& outp
  */
 [[nodiscard]] bool capture_key(std::uint32_t& picked) noexcept {
     if ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0) {
-        picked = client::teleport::kNoKey;
+        picked = client::movement::kNoKey;
         return true;
     }
     for (int key = kFirstVirtualKey; key <= kLastVirtualKey; ++key) {
@@ -86,14 +88,11 @@ void key_name(std::uint32_t virtualKey, std::array<char, kKeyNameCapacity>& outp
 
 /**
  * Draws one key picker while keeping capture ownership exclusive.
- * @param id ImGui identity
- * for the button.
+ * @param id ImGui identity for the button.
  * @param target Binding this picker captures.
- * @param virtualKey Binding value
- * to display and update.
+ * @param virtualKey Binding value to display and update.
  * @param width Button width.
- * @return True when a new binding was
- * captured.
+ * @return True when a new binding was captured.
  */
 [[nodiscard]] bool
 key_picker(const char* id, CaptureTarget target, std::uint32_t& virtualKey, float width) noexcept {
@@ -103,7 +102,7 @@ key_picker(const char* id, CaptureTarget target, std::uint32_t& virtualKey, floa
             g_capturing = CaptureTarget::none;
         }
         ImGui::PopID();
-        std::uint32_t picked = client::teleport::kNoKey;
+        std::uint32_t picked = client::movement::kNoKey;
         if (capture_key(picked)) {
             virtualKey = picked;
             g_capturing = CaptureTarget::none;
@@ -123,9 +122,9 @@ key_picker(const char* id, CaptureTarget target, std::uint32_t& virtualKey, floa
 
 } // namespace
 
-/** Draws the teleport module inside the active Core UI frame. */
+/** Draws the movement module inside the active Core UI frame. */
 void draw() noexcept {
-    client::teleport::Settings settings = client::teleport::get();
+    client::movement::Settings settings = client::movement::get();
     bool changed = false;
 
     ImGui::TextUnformatted("Teleport");
@@ -134,7 +133,8 @@ void draw() noexcept {
                        "Cancels vertical momentum.");
     ImGui::Spacing();
 
-    changed = core::ui::components::toggle::control("Enabled", settings.enabled) || changed;
+    changed =
+        core::ui::components::toggle::control("Enabled##teleport", settings.enabled) || changed;
 
     ImGui::Spacing();
     // One label column and one control column, so the slider and key buttons share both edges.
@@ -149,8 +149,8 @@ void draw() noexcept {
     float distance = settings.distance;
     if (ImGui::SliderFloat("##distance",
                            &distance,
-                           client::teleport::kMinimumDistance,
-                           client::teleport::kMaximumDistance,
+                           client::movement::kMinimumDistance,
+                           client::movement::kMaximumDistance,
                            "%.0f units")) {
         settings.distance = distance;
         changed = true;
@@ -168,16 +168,11 @@ void draw() noexcept {
     ImGui::TextUnformatted("Noclip");
     ImGui::Separator();
     ImGui::TextWrapped("Uses native horizontal rigid-body velocity while preserving the game's "
-                       "vertical movement.");
+                       "vertical movement. The bound key turns it on and off in game.");
     ImGui::Spacing();
 
-    changed = core::ui::components::toggle::control("Available", settings.noclipEnabled) || changed;
-
-    ImGui::Spacing();
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Active");
-    ImGui::SameLine(labelWidth);
-    ImGui::TextUnformatted(client::hooks::noclip::active() ? "Yes" : "No");
+    changed =
+        core::ui::components::toggle::control("Enabled##noclip", settings.noclipEnabled) || changed;
 
     ImGui::Spacing();
     ImGui::AlignTextToFramePadding();
@@ -187,10 +182,10 @@ void draw() noexcept {
         key_picker("noclip_key", CaptureTarget::noclip, settings.noclipToggleKey, controlWidth)
         || changed;
 
-    if (changed && !client::teleport::publish(settings)) {
+    if (changed && !client::movement::publish(settings)) {
         ImGui::Spacing();
         ImGui::TextUnformatted("value out of range, not saved");
     }
 }
 
-} // namespace sunrise::client::ui::teleport
+} // namespace sunrise::client::ui::movement

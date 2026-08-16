@@ -51,6 +51,19 @@ void shutdown() noexcept;
 void write(Channel channel, Level level, std::string_view event) noexcept;
 
 /**
+ * Emits one debug event carrying a duration in the ms field.
+ * Timing is diagnostic, so it stays off at the levels a normal run uses.
+ * @param channel Channel owning the measured boundary.
+ * @param event Event and phase text the duration is appended to.
+ * @param startedTick GetTickCount64 value taken when the boundary began.
+ * @param result Outcome text for the log line.
+ */
+void write_elapsed(Channel channel,
+                   std::string_view event,
+                   unsigned long long startedTick,
+                   std::string_view result) noexcept;
+
+/**
  * Reports whether any thread is inside a sink write.
  * A sink holds an operating system lock this process shares, so a thread suspended there
  * blocks the next writer. Nothing may suspend process threads while this is true.

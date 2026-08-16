@@ -16,7 +16,7 @@
 #include "../../../core/ui/runtime/ui_visibility_runtime.h"
 #include "../../../state/account/account_state.h"
 #include "../../../state/runtime/runtime.h"
-#include "../../teleport/teleport_settings_store.h"
+#include "../../movement/movement_settings_store.h"
 #include "../noclip/runtime.h"
 #include "../polled_input/runtime.h"
 #include "internal.h"
@@ -318,7 +318,7 @@ void set_vertical_velocity(std::byte* body, float value) noexcept {
     }
     report_gates(component, body);
     set_vertical_velocity(body, 0.0F);
-    if (!move_body(body, client::teleport::get().distance)) {
+    if (!move_body(body, client::movement::get().distance)) {
         return false;
     }
     begin_press();
@@ -366,8 +366,8 @@ void capture_forward(std::uint32_t playerIndex) noexcept {
 void poll_request() noexcept {
     end_press();
     expire_request();
-    const client::teleport::Settings settings = client::teleport::get();
-    const bool usable = settings.enabled && settings.virtualKey != client::teleport::kNoKey;
+    const client::movement::Settings settings = client::movement::get();
+    const bool usable = settings.enabled && settings.virtualKey != client::movement::kNoKey;
     g_active.store(usable, std::memory_order_relaxed);
     if (!usable) {
         g_keyDown.store(false, std::memory_order_relaxed);

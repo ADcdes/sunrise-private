@@ -10,9 +10,7 @@ constexpr std::size_t kNoCandidate = static_cast<std::size_t>(-1);
 
 /**
  * The one exact byte a pattern's candidate search keys on.
- * Only exact bytes can be searched for, so a pattern without one cannot be scanned at all. That
- * is the same condition the sweep already rejected patterns on, so the anchor doubles as the
- * validity check.
+ * A pattern with no exact byte cannot be scanned, so the anchor doubles as the validity check.
  */
 struct Anchor {
     /** Position of the anchor byte inside the pattern. */
@@ -49,9 +47,8 @@ struct Anchor {
 [[nodiscard]] bool matches_at(std::span<const std::byte> image,
                               std::size_t offset,
                               std::span<const PatternByte> pattern) noexcept {
-    // The offset is checked before the subtraction, so this holds for any caller value rather
-    // than only for the bounded offsets next_candidate produces.
-    if (offset >= image.size() || pattern.size() > image.size() - offset) {
+    // next_candidate never returns an offset past the last whole match, so this cannot wrap.
+    if (pattern.size() > image.size() - offset) {
         return false;
     }
     for (std::size_t index = 0; index < pattern.size(); ++index) {
