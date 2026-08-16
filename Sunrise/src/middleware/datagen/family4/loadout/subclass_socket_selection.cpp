@@ -18,23 +18,25 @@ constexpr std::uint8_t kSprintEntry = 1;
 
 } // namespace
 
-/** Builds the selection for one character. */
-void subclass_selection(const state::CharacterState& character,
+/** Builds the selection for one subclass item. */
+void subclass_selection(const state::account::inventory::Item& item,
+                        state::CharacterClass characterClass,
                         SubclassSelection& output) noexcept {
     output = {};
-    output.selected[0] = {character.grenadeAbilityEntry, state::kGrenadeAbilityBucket};
-    output.selected[1] = {character.superAbilityEntry, state::kSuperAbilityBucket};
-    output.selected[2] = {character.meleeAbilityEntry, state::kMeleeAbilityBucket};
-    output.selected[3] = {character.movementAbilityEntry, state::kMovementAbilityBucket};
+    output.selected[0] = {item.grenadeAbilityEntry, state::kGrenadeAbilityBucket};
+    output.selected[1] = {item.superAbilityEntry, state::kSuperAbilityBucket};
+    output.selected[2] = {item.meleeAbilityEntry, state::kMeleeAbilityBucket};
+    output.selected[3] = {item.movementAbilityEntry, state::kMovementAbilityBucket};
     output.selected[4] = {kSprintEntry, state::kSprintAbilityBucket};
-    output.selected[5] = {character.classAbilityEntry,
-                          state::class_ability_bucket(character.characterClass)};
+    output.selected[5] = {item.classAbilityEntry, state::class_ability_bucket(characterClass)};
 }
 
 /** Resolves one item's socket-entry states and selector lanes. */
 void resolve_socket_states(
     const build_socket_lists::Definition& definition,
-    const state::CharacterState& character,
+    const state::account::inventory::Item& item,
+    state::CharacterClass characterClass,
+    std::uint64_t acquiredSubclassAbilityMask,
     std::array<instance::SocketEntryState, instance::layout::kSocketEntryStateCapacity>& output,
     std::array<instance::SocketSelector, kSelectorBucketCount>& selectors) noexcept {
     output.fill(instance::SocketEntryState::absent);
@@ -42,7 +44,7 @@ void resolve_socket_states(
     for (std::size_t index = 0; index < definition.entryCount; ++index) {
         const std::uint64_t bit = std::uint64_t{1} << index;
         if ((definition.readyMask & bit) != 0) {
-            output[index] = (character.acquiredSubclassAbilityMask & bit) != 0
+            output[index] = (acquiredSubclassAbilityMask & bit) != 0
                                 ? instance::SocketEntryState::acquired
                                 : instance::SocketEntryState::ready;
         }
@@ -53,7 +55,7 @@ void resolve_socket_states(
         return;
     }
     SubclassSelection selection{};
-    subclass_selection(character, selection);
+    subclass_selection(item, characterClass, selection);
 
     // A group of 2 or 3 entries (grenade, movement, class ability) is an ordinary set of mutually
     // exclusive alternatives: exactly one is meant to light up. An Attunement's group is far

@@ -70,13 +70,14 @@ held(std::span<const state::build_data::socket_entry_buckets::Definition> rows,
     return false;
 }
 
-/** @param character Authored character. @return Its 5 selected socket entries. */
-[[nodiscard]] domain::Selection selection_of(const state::CharacterState& character) noexcept {
-    return {character.movementAbilityEntry,
-            character.grenadeAbilityEntry,
-            character.superAbilityEntry,
-            character.meleeAbilityEntry,
-            character.classAbilityEntry};
+/** @param item Authored subclass item. @return Its 5 selected socket entries. */
+[[nodiscard]] domain::Selection
+selection_of(const state::account::inventory::Item& item) noexcept {
+    return {item.movementAbilityEntry,
+            item.grenadeAbilityEntry,
+            item.superAbilityEntry,
+            item.meleeAbilityEntry,
+            item.classAbilityEntry};
 }
 
 } // namespace
@@ -201,7 +202,6 @@ bool build_character_abilities(const reader::Source& source,
             memberCount = group.size();
         }
 
-        const domain::Selection realSelection = selection_of(account.characters[character]);
         for (std::size_t member = 0; member < memberCount && count < output.size(); ++member) {
             const std::uint16_t memberDefinitionIndex = members[member];
             state::build_data::items::details::Definition memberDetail{};
@@ -210,12 +210,33 @@ bool build_character_abilities(const reader::Source& source,
                 continue;
             }
             publish(character, memberDetail.socketEntryListIndex, defaultSelection);
-            // The equipped member also publishes its real current picks, on top of the default
-            // row every member gets: a fresh boot that never swapped needs its actual selection
-            // to resolve, not the shared default.
-            if (memberDefinitionIndex == equippedItem.definitionIndex
-                && !(realSelection == defaultSelection)) {
-                publish(character, memberDetail.socketEntryListIndex, realSelection);
+            // Each owned subclass remembers its own picks now, not just the equipped one, so
+            // every member is checked for a non-default selection to publish on top of the
+            // default row every member gets: a fresh boot that never swapped needs its actual
+            // selection to resolve, not the shared default, for whichever subclasses were
+            // already configured before this boot.
+            const domain::Selection* memberSelection = nullptr;
+            domain::Selection resolvedSelection{};
+            if (memberDefinitionIndex == equippedItem.definitionIndex) {
+                resolvedSelection = selection_of(*equippedSlot);
+                memberSelection = &resolvedSelection;
+            } else {
+                state::build_data::items::Definition memberItemDefinition{};
+                if (state::build_data::find_item_definition_index(memberDefinitionIndex,
+                                                                   memberItemDefinition)) {
+                    const auto& inventory = account.characters[character].inventory;
+                    for (std::size_t itemIndex = 0; itemIndex < inventory.count; ++itemIndex) {
+                        if (inventory.values[itemIndex].definitionHash
+                            == memberItemDefinition.definitionHash) {
+                            resolvedSelection = selection_of(inventory.values[itemIndex]);
+                            memberSelection = &resolvedSelection;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (memberSelection != nullptr && !(*memberSelection == defaultSelection)) {
+                publish(character, memberDetail.socketEntryListIndex, *memberSelection);
             }
         }
     }

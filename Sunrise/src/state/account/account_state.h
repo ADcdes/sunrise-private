@@ -117,20 +117,6 @@ struct CharacterState {
     /** Server policy that arms content checks only with the matching family-5 flag. */
     bool contentBypass{};
     /**
-     * Socket-entry-list entry naming the movement ability this character has selected.
-     * One subclass group holds several movement entries, and the selected one decides which
-     * ability buckets the character record publishes. A player choice, so it is authored.
-     */
-    std::uint8_t movementAbilityEntry{kDefaultMovementAbilityEntry};
-    /** Socket entry naming the grenade this character has selected. */
-    std::uint8_t grenadeAbilityEntry{kDefaultGrenadeAbilityEntry};
-    /** Socket entry naming the super this character has selected. */
-    std::uint8_t superAbilityEntry{kDefaultSuperAbilityEntry};
-    /** Socket entry naming the melee this character has selected. */
-    std::uint8_t meleeAbilityEntry{kDefaultMeleeAbilityEntry};
-    /** Socket entry naming the class ability this character has selected. */
-    std::uint8_t classAbilityEntry{kDefaultClassAbilityEntry};
-    /**
      * Runtime-only socket entries the player has selected at least once. Selected entries still
      * publish active; this mask keeps a later inactive entry acquired instead of new/unclaimed.
      * EXPERIMENT: defaulted to all-set so every ready entry reads as acquired instead of new, to

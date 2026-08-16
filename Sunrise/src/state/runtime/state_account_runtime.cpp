@@ -152,17 +152,21 @@ void report_acquisition(std::string_view stage,
     // members freely across slots, so every member in the clicked entry's bundle is checked, not
     // just the one clicked.
     CharacterState after = before;
+    // The picks belong to the equipped subclass item itself, not the character, so each owned
+    // subclass remembers its own selection independently instead of sharing one set across all
+    // of them.
+    auto& afterSubclass = after.equipment.slots[kSubclassSlot];
     struct Route {
         std::uint8_t bucket;
         std::uint8_t* field;
         std::uint8_t defaultEntry;
     };
     const std::array<Route, 5> routes{{
-        {kMovementAbilityBucket, &after.movementAbilityEntry, kDefaultMovementAbilityEntry},
-        {kGrenadeAbilityBucket, &after.grenadeAbilityEntry, kDefaultGrenadeAbilityEntry},
-        {kSuperAbilityBucket, &after.superAbilityEntry, kDefaultSuperAbilityEntry},
-        {kMeleeAbilityBucket, &after.meleeAbilityEntry, kDefaultMeleeAbilityEntry},
-        {class_ability_bucket(after.characterClass), &after.classAbilityEntry,
+        {kMovementAbilityBucket, &afterSubclass->movementAbilityEntry, kDefaultMovementAbilityEntry},
+        {kGrenadeAbilityBucket, &afterSubclass->grenadeAbilityEntry, kDefaultGrenadeAbilityEntry},
+        {kSuperAbilityBucket, &afterSubclass->superAbilityEntry, kDefaultSuperAbilityEntry},
+        {kMeleeAbilityBucket, &afterSubclass->meleeAbilityEntry, kDefaultMeleeAbilityEntry},
+        {class_ability_bucket(after.characterClass), &afterSubclass->classAbilityEntry,
          kDefaultClassAbilityEntry},
     }};
     const auto bucket_of = [&](std::uint8_t entryIndex) noexcept {
