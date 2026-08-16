@@ -8,6 +8,7 @@
 
 #include "../../../core/logging/log.h"
 #include "../../../core/settings/settings.h"
+#include "../../../state/activity/forced/activity_forced_destination.h"
 #include "../../hooking/detour.h"
 #include "internal.h"
 
@@ -111,8 +112,8 @@ void report(std::uint32_t sliceSet, bool forced) noexcept {
 
 /**
  * Reports a bubble as private, for the region transition's own call only.
- * A public region holds its slice-set switch until a public activity host connects.
- * `client.region_private` off keeps the public answer, so the citizen join can run.
+ * A public region holds its slice-set switch until a public activity host connects. The answer
+ * is public unless `client.region_private` is on, or a destination is forced.
  * @return False on the starter's call, otherwise the reader's own answer.
  */
 __declspec(noinline) bool __fastcall reader(std::uint32_t sliceSet) noexcept {
@@ -128,7 +129,9 @@ __declspec(noinline) bool __fastcall reader(std::uint32_t sliceSet) noexcept {
     if (caller != g_returnSite.load(std::memory_order_acquire)) {
         return true;
     }
-    const bool forced = core::settings::get().client.regionPrivate;
+    // No public host serves a forced destination, so that run waits forever. It must load solo.
+    const bool forced =
+        core::settings::get().client.regionPrivate || state::activity::forced::override_active();
     report(sliceSet, forced);
     return !forced;
 }

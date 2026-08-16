@@ -13,15 +13,14 @@
 #include "../content/investment/worker.h"
 #include "../executable/image.h"
 #include "../hooks/assert_handler/assert_handler_lifecycle.h"
-#include "../hooks/banner/banner_hook_lifecycle.h"
 #include "../hooks/bitmap/bitmap_hook_lifecycle.h"
 #include "../hooks/bootflow/bootflow_hook_lifecycle.h"
 #include "../hooks/config_getter/config_getter_lifecycle.h"
 #include "../hooks/cursor/runtime.h"
 #include "../hooks/graphics/graphics_hook_lifecycle.h"
 #include "../hooks/network/runtime.h"
-#include "../hooks/package_trust/package_trust_bypass.h"
 #include "../hooks/noclip/runtime.h"
+#include "../hooks/package_trust/package_trust_bypass.h"
 #include "../hooks/polled_input/runtime.h"
 #include "../hooks/queuez/queuez_hook_lifecycle.h"
 #include "../hooks/retail_log/retail_log_lifecycle.h"
@@ -104,31 +103,6 @@ void report_resolve_failure() noexcept {
         core::log::Channel::client, core::log::Level::error, std::string_view(line.data(), length));
 }
 
-/**
- * Reports how long main activation took, for the debug channel only.
- * Timing is diagnostic, so it never appears at the levels a normal run uses.
- * @param event Event and phase text the duration is appended to.
- * @param startedTick Tick count taken when activation began.
- * @param result Outcome text for the log line.
- */
-void report_elapsed(const char* event, std::uint64_t startedTick, const char* result) noexcept {
-    const std::uint64_t elapsed = GetTickCount64() - startedTick;
-    std::array<char, 96> line{};
-    const int written = std::snprintf(line.data(),
-                                      line.size(),
-                                      "%s ms=%llu result=%s",
-                                      event,
-                                      static_cast<unsigned long long>(elapsed),
-                                      result);
-    if (written <= 0) {
-        return;
-    }
-    const auto length = static_cast<std::size_t>(written) < line.size()
-                            ? static_cast<std::size_t>(written)
-                            : line.size() - 1;
-    core::log::write(core::log::Channel::client, core::log::Level::debug, {line.data(), length});
-}
-
 /** Clears both main-image target groups while no game hook owns their entries. */
 void clear_game_targets() noexcept {
     targets::game::content::clear();
@@ -200,9 +174,6 @@ void clear_game_targets() noexcept {
     // The bitmap reference guard puts the none sentinel in place of a reference outside tag
     // space. Without it the widget's stored-reference reader faults.
     (void)hooks::bitmap::install();
-    // The orbit banner component ships unbound, so its update body never runs and it draws the
-    // constructor's values.
-    (void)hooks::banner::install();
     content::investment::worker::activate();
     return true;
 }
@@ -232,8 +203,10 @@ bool activate_main_once() noexcept {
     // presents. That wait belongs to the overlay, not to the work being measured.
     const std::uint64_t startedTick = GetTickCount64();
     const bool active = runtime::activate_required_main_locked();
-    runtime::report_elapsed(
-        "ev=activate stage=main phase=complete", startedTick, active ? "ok" : "fail");
+    core::log::write_elapsed(core::log::Channel::client,
+                             "ev=activate stage=main phase=complete",
+                             startedTick,
+                             active ? "ok" : "fail");
     core::ui::busy::end(core::ui::busy::Task::initialization);
     if (!active) {
         // A failed sweep latches too: repeating it stalls the frame loop for nothing.

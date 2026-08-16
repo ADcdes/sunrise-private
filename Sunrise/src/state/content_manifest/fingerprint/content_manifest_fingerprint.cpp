@@ -23,10 +23,10 @@ constexpr std::array<std::byte, 20> kRowDomain{
 constexpr std::byte kCatalogDomainVersion{1};
 /** This domain separates client cache identities from their component hashes. */
 constexpr std::array<std::byte, 23> kCatalogDomain{
-    std::byte{'S'}, std::byte{'u'}, std::byte{'n'}, std::byte{'r'}, std::byte{'i'},
-    std::byte{'s'}, std::byte{'e'}, std::byte{'C'}, std::byte{'o'}, std::byte{'n'},
-    std::byte{'t'}, std::byte{'e'}, std::byte{'n'}, std::byte{'t'}, std::byte{'C'},
-    std::byte{'a'}, std::byte{'t'}, std::byte{'a'}, std::byte{'l'}, std::byte{'o'},
+    std::byte{'S'}, std::byte{'u'},    std::byte{'n'},        std::byte{'r'}, std::byte{'i'},
+    std::byte{'s'}, std::byte{'e'},    std::byte{'C'},        std::byte{'o'}, std::byte{'n'},
+    std::byte{'t'}, std::byte{'e'},    std::byte{'n'},        std::byte{'t'}, std::byte{'C'},
+    std::byte{'a'}, std::byte{'t'},    std::byte{'a'},        std::byte{'l'}, std::byte{'o'},
     std::byte{'g'}, kDomainTerminator, kCatalogDomainVersion,
 };
 /** UUID version 8 reserves the payload bits for this deterministic public hash. */

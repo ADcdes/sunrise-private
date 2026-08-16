@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdio>
@@ -28,6 +29,12 @@ constexpr std::wstring_view kPreviousLogSuffix = L".old";
 constexpr std::string_view kLineEnding = "\r\n";
 /** One trailing null byte is kept for the debugger sink. */
 constexpr std::size_t kLineTerminatorBytes = 1;
+/** An elapsed line is one event, a duration and an outcome, so it needs less than a full line. */
+constexpr std::size_t kElapsedCapacity = 128;
+/** Uppercase digits for the hex traces, which are read beside hex dumps of the same bytes. */
+constexpr std::string_view kHexDigits = "0123456789ABCDEF";
+/** One byte prints as two hex digits, which is the room each appended byte needs. */
+constexpr std::size_t kHexDigitsPerByte = 2;
 /** Event text stops before the CRLF and the trailing null. */
 constexpr std::size_t kEventTextCapacity =
     kLineCapacity - kLineEnding.size() - kLineTerminatorBytes;
@@ -242,6 +249,48 @@ void write(Channel channel, Level level, std::string_view event) noexcept {
     // Record after sink writes while the shared lifetime lock still excludes shutdown reset.
     snapshot::internal::record(channel, level, std::string_view(line.data(), snapshotLength));
     ReleaseSRWLockShared(&g_log.lock);
+}
+
+/** Formats and emits one debug event carrying a duration in the ms field. */
+void write_elapsed(Channel channel,
+                   std::string_view event,
+                   unsigned long long startedTick,
+                   std::string_view result) noexcept {
+    if (!accepts(channel, Level::debug)) {
+        return;
+    }
+    const unsigned long long elapsed = GetTickCount64() - startedTick;
+    std::array<char, kElapsedCapacity> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "%.*s ms=%llu result=%.*s",
+                                      static_cast<int>(event.size()),
+                                      event.data(),
+                                      elapsed,
+                                      static_cast<int>(result.size()),
+                                      result.data());
+    if (written <= 0) {
+        return;
+    }
+    // snprintf reports the length before truncation, so the emitted view is clamped to the buffer.
+    const auto length =
+        std::min(static_cast<std::size_t>(written), line.size() - kLineTerminatorBytes);
+    write(channel, Level::debug, {line.data(), length});
+}
+
+/** Appends bytes as uppercase hex to a line that already holds its key prefix. */
+bool append_hex(std::span<char> line,
+                std::size_t& length,
+                std::span<const std::byte> bytes) noexcept {
+    for (const std::byte byte : bytes) {
+        if (length + kHexDigitsPerByte >= line.size()) {
+            return false;
+        }
+        const auto value = std::to_integer<unsigned>(byte);
+        line[length++] = kHexDigits[(value >> 4U) & 0xFU];
+        line[length++] = kHexDigits[value & 0xFU];
+    }
+    return true;
 }
 
 /** @return True while a sink write is in progress. */

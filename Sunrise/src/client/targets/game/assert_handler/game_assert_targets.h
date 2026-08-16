@@ -7,15 +7,12 @@
 
 namespace sunrise::client::targets::game::assert_handler {
 
-// clang-format off
 /**
- * Derives the assert handler setter and slot from the setter copies and the assert sites that read
- * it.
+ * Derives the assert handler setter and slot from the setter copies and the reading sites.
  * @param image Executable ranges from the main game image.
  * @param output Receives the setter, slot and handler currently installed in it.
  * @return True when one candidate wins the vote by the required margin.
  */
-// clang-format on
 [[nodiscard]] bool derive(std::span<const patterns::ImageRange> image, Targets& output) noexcept;
 
 /** @param targets Validated assert table published without failure. */
