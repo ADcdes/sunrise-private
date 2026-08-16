@@ -15,6 +15,15 @@ namespace sunrise::state {
  */
 [[nodiscard]] bool ensure_profile_item_identities() noexcept;
 
+/**
+ * Grants each character the other 2 subclasses of the class its equipped subclass belongs to,
+ * placing any missing ones into unequipped inventory with native socket defaults. Idempotent:
+ * a subclass already equipped or already sitting in inventory is left alone.
+ * @return True when every character with an equipped subclass ends up holding its whole class,
+ * or there was nothing to check (no account, or no character carries a subclass yet).
+ */
+[[nodiscard]] bool ensure_character_subclasses() noexcept;
+
 /** Direction of one checked character equipment mutation. */
 enum class EquipmentMutationKind : std::uint8_t {
     none,

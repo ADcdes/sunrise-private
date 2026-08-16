@@ -2117,6 +2117,20 @@ bool prepare_equipment_swap(std::uint64_t requestedInstanceSoid,
         after.inventory.values[after.inventory.count] = {};
     }
 
+    // A subclass swap changes which socket-entry list the character's ability picks index into.
+    // The prior selection is meaningless (and often out of range) for the newly equipped
+    // subclass, so it resets to the universal first-option defaults every shipped subclass
+    // starts at, matching what a fresh character carries before any pick is made.
+    constexpr std::size_t kSubclassSlotIndex =
+        static_cast<std::size_t>(authored_inventory::EquipmentSlot::subclass);
+    if (equipmentSlotIndex == kSubclassSlotIndex) {
+        after.movementAbilityEntry = kDefaultMovementAbilityEntry;
+        after.grenadeAbilityEntry = kDefaultGrenadeAbilityEntry;
+        after.superAbilityEntry = kDefaultSuperAbilityEntry;
+        after.meleeAbilityEntry = kDefaultMeleeAbilityEntry;
+        after.classAbilityEntry = kDefaultClassAbilityEntry;
+    }
+
     std::size_t movedItemCount = 0;
     if (!finalize_equipment_transition(account,
                                        characterIndex,
@@ -2353,6 +2367,84 @@ AccountState account_snapshot() noexcept {
     const AccountState snapshot = runtime::storage::g_state.account;
     ReleaseSRWLockShared(&runtime::storage::g_stateLock);
     return snapshot;
+}
+
+/** Grants each character the other 2 subclasses of its equipped subclass's class. */
+bool ensure_character_subclasses() noexcept {
+    constexpr std::size_t kSubclassSlot =
+        static_cast<std::size_t>(authored_inventory::EquipmentSlot::subclass);
+    AcquireSRWLockExclusive(&runtime::storage::g_stateLock);
+    AccountState candidate = runtime::storage::g_state.account;
+    if (!account::valid(candidate)) {
+        ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
+        return true;
+    }
+    std::uint64_t nextSoid = 0;
+    bool haveNextSoid = false;
+    bool changed = false;
+    bool failed = false;
+    for (std::size_t characterIndex = 0;
+         characterIndex < candidate.characterCount && !failed;
+         ++characterIndex) {
+        CharacterState& character = candidate.characters[characterIndex];
+        const std::optional<authored_inventory::Item>& equipped =
+            character.equipment.slots[kSubclassSlot];
+        if (!equipped.has_value()) {
+            continue;
+        }
+        build_data::items::Definition equippedDefinition{};
+        std::array<std::uint16_t, build_data::kSubclassGroupSize> group{};
+        if (!build_data::find_item_definition_hash(equipped->definitionHash, equippedDefinition)
+            || !build_data::find_subclass_group(equippedDefinition.definitionIndex, group)) {
+            continue;
+        }
+        for (const std::uint16_t memberIndex : group) {
+            if (memberIndex == equippedDefinition.definitionIndex) {
+                continue;
+            }
+            build_data::items::Definition memberDefinition{};
+            if (!build_data::find_item_definition_index(memberIndex, memberDefinition)
+                || memberDefinition.definitionIndex != memberIndex) {
+                continue;
+            }
+            bool present = false;
+            for (std::size_t itemIndex = 0; itemIndex < character.inventory.count; ++itemIndex) {
+                if (character.inventory.values[itemIndex].definitionHash
+                    == memberDefinition.definitionHash) {
+                    present = true;
+                    break;
+                }
+            }
+            if (present || character.inventory.count >= character.inventory.values.size()) {
+                continue;
+            }
+            if (!haveNextSoid) {
+                if (!next_item_instance_soid(candidate, nextSoid)) {
+                    failed = true;
+                    break;
+                }
+                haveNextSoid = true;
+            }
+            authored_inventory::Item granted{};
+            granted.instanceSoid = nextSoid++;
+            granted.definitionHash = memberDefinition.definitionHash;
+            granted.level = 0;
+            granted.quantity = 1;
+            // Every resolved item's serial must stay behind the character's own counter (checked
+            // by the character encoder, not by account::valid), so claim the next one here too.
+            granted.mutationSerial = static_cast<std::int32_t>(character.nextInventorySerial++);
+            granted.sockets.policy = authored_inventory::SocketPolicy::nativeDefaults;
+            character.inventory.values[character.inventory.count++] = granted;
+            changed = true;
+        }
+    }
+    if (failed || !changed || !account::valid(candidate)) {
+        ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
+        return !failed;
+    }
+    runtime::storage::g_state.account = candidate;
+    ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
+    return true;
 }
 
 } // namespace sunrise::state

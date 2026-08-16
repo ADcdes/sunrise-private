@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -316,6 +317,22 @@ publish_socket_entry_lists(std::span<const socket_entry_lists::Definition> defin
  */
 [[nodiscard]] bool find_socket_entry_list(std::uint16_t definitionIndex,
                                           socket_entry_lists::Definition& definition) noexcept;
+
+/** Number of subclass items every character class ships in this build. */
+inline constexpr std::size_t kSubclassGroupSize = 3;
+
+/**
+ * Finds the 2 other subclasses that share one character class with a known member.
+ * The installed manifest lists every subclass item (any item carrying a socket-entry-list)
+ * together as one dense run per class, in native definition-index order, so the run holding a
+ * known member gives every other member with no per-class identity of its own to look up.
+ * @param memberDefinitionIndex Native item-definition index of one subclass in the class.
+ * @param group Receives the 3 member indices, in native definition-index order.
+ * @return True when every subclass item was found and `memberDefinitionIndex` is one of them.
+ */
+[[nodiscard]] bool
+find_subclass_group(std::uint16_t memberDefinitionIndex,
+                    std::array<std::uint16_t, kSubclassGroupSize>& group) noexcept;
 
 /** @return True when a complete destination-layout domain, empty or not, is published. */
 [[nodiscard]] bool scenario_layouts_ready() noexcept;

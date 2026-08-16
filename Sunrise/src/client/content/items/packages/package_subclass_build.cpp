@@ -95,45 +95,100 @@ bool build_character_abilities(const reader::Source& source,
         return false;
     }
     const state::AccountState account = state::account_snapshot();
+    // First-option defaults every shipped subclass starts at (see account_state.h). Equipping a
+    // subclass always resets its picks to these (state_account_runtime.cpp), so every owned
+    // subclass publishes a row at this fixed selection regardless of which one is equipped right
+    // now. That row has to exist synchronously, ahead of time: the equip response that needs it is
+    // built inline with the commit, with no room to wait on a later refresh slice.
+    const domain::Selection defaultSelection{state::kDefaultMovementAbilityEntry,
+                                             state::kDefaultGrenadeAbilityEntry,
+                                             state::kDefaultSuperAbilityEntry,
+                                             state::kDefaultMeleeAbilityEntry,
+                                             state::kDefaultClassAbilityEntry};
+    // Builds and stores one row, skipping a key already held. Best-effort: a failure here still
+    // lets the other rows in this pass publish.
+    const auto publish = [&](std::size_t character,
+                             std::uint16_t socketEntryListIndex,
+                             const domain::Selection& selection) noexcept {
+        if (count >= output.size()) {
+            return;
+        }
+        domain::Definition row{};
+        row.socketEntryListIndex = socketEntryListIndex;
+        row.selection = selection;
+        if (held(output.first(count), row)) {
+            return;
+        }
+        tables::IndexRow indexRow{};
+        if (!tables::index_row(std::span<const std::byte>{table}, rows, socketEntryListIndex, indexRow)
+            || indexRow.targetTag == 0) {
+            report_ability_failure("index_row", character, socketEntryListIndex, rows.count);
+            return;
+        }
+        if (!reader::read_tag(source, scratch, indexRow.targetTag, definition)) {
+            report_ability_failure("definition_read", character, socketEntryListIndex, indexRow.targetTag);
+            return;
+        }
+        if (!build_ability_buckets(
+                source, scratch, std::span<const std::byte>{definition}, blob, selection, row)) {
+            const std::size_t packedSelection = selection.movementEntry
+                                                | (selection.grenadeEntry << 8U)
+                                                | (selection.superEntry << 16U)
+                                                | (selection.meleeEntry << 24U);
+            report_ability_failure("bucket_build", character, socketEntryListIndex, packedSelection);
+            return;
+        }
+        output[count++] = row;
+    };
     for (std::size_t character = 0; character < account.characterCount && count < output.size();
          ++character) {
-        domain::Definition row{};
+        std::uint16_t equippedSocketEntryListIndex = 0;
         const char* subclassReason = "subclass";
         if (!subclass_list(
-                account.characters[character], row.socketEntryListIndex, subclassReason)) {
+                account.characters[character], equippedSocketEntryListIndex, subclassReason)) {
             const auto& subclass = account.characters[character].equipment.slots[kSubclassSlot];
             report_ability_failure(
                 subclassReason, character, subclass.has_value() ? subclass->definitionHash : 0, 0);
             continue;
         }
-        // The selection is held in a local because the row it also keys is the build's output.
-        const domain::Selection selection = selection_of(account.characters[character]);
-        row.selection = selection;
-        if (held(output.first(count), row)) {
+
+        const auto& equippedSlot = account.characters[character].equipment.slots[kSubclassSlot];
+        state::build_data::items::Definition equippedItem{};
+        if (!state::build_data::find_item_definition_hash(equippedSlot->definitionHash,
+                                                           equippedItem)) {
             continue;
         }
-        tables::IndexRow indexRow{};
-        if (!tables::index_row(
-                std::span<const std::byte>{table}, rows, row.socketEntryListIndex, indexRow)
-            || indexRow.targetTag == 0) {
-            report_ability_failure("index_row", character, row.socketEntryListIndex, rows.count);
-            continue;
+
+        // Every subclass the character owns publishes a row, not just the equipped one, so a
+        // later equip swap always lands on an already-built row instead of racing the next
+        // refresh slice. When the group cannot be resolved, at least the equipped one still
+        // publishes, matching the prior single-row behaviour.
+        std::array<std::uint16_t, state::build_data::kSubclassGroupSize> group{};
+        std::array<std::uint16_t, state::build_data::kSubclassGroupSize> members{};
+        std::size_t memberCount = 1;
+        members[0] = equippedItem.definitionIndex;
+        if (state::build_data::find_subclass_group(equippedItem.definitionIndex, group)) {
+            members = group;
+            memberCount = group.size();
         }
-        if (!reader::read_tag(source, scratch, indexRow.targetTag, definition)) {
-            report_ability_failure(
-                "definition_read", character, row.socketEntryListIndex, indexRow.targetTag);
-            continue;
+
+        const domain::Selection realSelection = selection_of(account.characters[character]);
+        for (std::size_t member = 0; member < memberCount && count < output.size(); ++member) {
+            const std::uint16_t memberDefinitionIndex = members[member];
+            state::build_data::items::details::Definition memberDetail{};
+            if (!state::build_data::find_configured_item_detail(memberDefinitionIndex,
+                                                                 memberDetail)) {
+                continue;
+            }
+            publish(character, memberDetail.socketEntryListIndex, defaultSelection);
+            // The equipped member also publishes its real current picks, on top of the default
+            // row every member gets: a fresh boot that never swapped needs its actual selection
+            // to resolve, not the shared default.
+            if (memberDefinitionIndex == equippedItem.definitionIndex
+                && !(realSelection == defaultSelection)) {
+                publish(character, memberDetail.socketEntryListIndex, realSelection);
+            }
         }
-        if (!build_ability_buckets(
-                source, scratch, std::span<const std::byte>{definition}, blob, selection, row)) {
-            const std::size_t packedSelection =
-                selection.movementEntry | (selection.grenadeEntry << 8U)
-                | (selection.superEntry << 16U) | (selection.meleeEntry << 24U);
-            report_ability_failure(
-                "bucket_build", character, row.socketEntryListIndex, packedSelection);
-            continue;
-        }
-        output[count++] = row;
     }
     if (count == 0) {
         report_ability_failure("empty", account.characterCount, rows.count, output.size());
