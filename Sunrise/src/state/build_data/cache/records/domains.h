@@ -16,6 +16,7 @@
 #include "../../scenarios/definition.h"
 #include "../../socket_entry_lists/definition.h"
 #include "../../spawn_sets/definition.h"
+#include "../../vendors/definition.h"
 #include "format.h"
 
 namespace sunrise::state::build_data::cache::records {
@@ -40,6 +41,10 @@ struct DomainCounts {
     std::size_t spawnStems{};
     std::size_t spawnNameHashes{};
     std::size_t hashNames{};
+    std::size_t vendorIndex{};
+    std::size_t vendorDefinitions{};
+    std::size_t vendorSaleRows{};
+    std::size_t vendorInstalledRows{};
 };
 
 /** Fixed caller storage used while decoding the cache domains. */
@@ -64,6 +69,10 @@ struct MutableDomains {
     std::span<spawn_sets::Stem> spawnStems;
     std::span<spawn_sets::NameHash> spawnNameHashes;
     std::span<hash_names::Name> hashNames;
+    std::span<vendors::IndexEntry> vendorIndex;
+    std::span<vendors::Definition> vendorDefinitions;
+    std::span<vendors::SaleRow> vendorSaleRows;
+    std::span<vendors::InstalledRow> vendorInstalledRows;
 };
 
 /** Read-only complete views used for the checks and for cache encoding. */
@@ -87,6 +96,10 @@ struct Domains {
     std::span<const spawn_sets::Stem> spawnStems;
     std::span<const spawn_sets::NameHash> spawnNameHashes;
     std::span<const hash_names::Name> hashNames;
+    std::span<const vendors::IndexEntry> vendorIndex;
+    std::span<const vendors::Definition> vendorDefinitions;
+    std::span<const vendors::SaleRow> vendorSaleRows;
+    std::span<const vendors::InstalledRow> vendorInstalledRows;
 };
 
 } // namespace sunrise::state::build_data::cache::records

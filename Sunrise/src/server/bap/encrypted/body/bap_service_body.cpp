@@ -1,3 +1,7 @@
+#include <array>
+#include <atomic>
+#include <cstdio>
+
 #include "../../../../core/logging/log.h"
 #include "../../../../middleware/bap/account_translation/account_translation_response.h"
 #include "../../../../middleware/bap/activity_host/activity_host_response.h"
@@ -6,6 +10,7 @@
 #include "../../../../middleware/bap/family_subscription.h"
 #include "../../../../middleware/bap/family_unsubscription.h"
 #include "../../../../middleware/bap/user_message/user_message_response.h"
+#include "../../../../middleware/encoding/byte_order.h"
 #include "../../../../middleware/web_service/messages/opcode505/opcode505_codec.h"
 #include "../../../../state/runtime/runtime.h"
 #include "../../../web_service/web_service_runtime.h"
@@ -16,6 +21,46 @@
 #include "../queuez/queuez_state_validation.h"
 
 namespace sunrise::server::bap::encrypted::body {
+namespace {
+
+/** One line carries the family and the root soid and nothing else. */
+constexpr std::size_t kSubscribeReportLimit = 96;
+/** The svc-23 request identity sits after its entry count and both type bytes. */
+constexpr std::size_t kTranslationIdentityOffset = 4;
+/** A request shorter than this carries no identity to read. */
+constexpr std::size_t kTranslationRequestSize =
+    kTranslationIdentityOffset + middleware::encoding::kU64Size;
+
+/**
+ * Identity already paired with the account soid, or zero before the first pairing.
+ * There is one account, so this is process-wide rather than per connection.
+ */
+std::atomic<std::uint64_t> g_translatedIdentity{0};
+
+/**
+ * Reports whether one svc-23 request may be paired with the account soid.
+ * The reply writes the soid into a queuez roster member. Two identities on one soid put two
+ * family-zero source entries on it, and every lookup then resolves only the first.
+ * @param requestBody Complete svc-23 request body.
+ * @return True when this identity is the one paired, or the first to ask.
+ */
+[[nodiscard]] bool pairs_identity(std::span<const std::byte> requestBody) noexcept {
+    if (requestBody.size() < kTranslationRequestSize) {
+        return false;
+    }
+    const std::uint64_t identity = middleware::encoding::read_u64_be(
+        requestBody.subspan<kTranslationIdentityOffset, middleware::encoding::kU64Size>());
+    if (identity == 0) {
+        return false;
+    }
+    std::uint64_t claimed = 0;
+    // A repeat of the same identity still pairs: the peer re-asks until the flag sticks.
+    return g_translatedIdentity.compare_exchange_strong(
+               claimed, identity, std::memory_order_relaxed)
+           || claimed == identity;
+}
+
+} // namespace
 
 /**
  * Processes the body for one authenticated service route.
@@ -44,8 +89,16 @@ bool process(const ServiceRoute& route,
         return true;
     case BodyCodec::accountTranslationResponse: {
         const state::AccountState account = state::account_snapshot();
+        // A zero soid makes the encoder write its zero-entry answer. That refuses an unpaired
+        // request without leaving the peer waiting.
+        const bool pairs = pairs_identity(requestBody);
+        const std::uint64_t soid = pairs ? account.primarySoid : 0;
+        core::log::write(core::log::Channel::server,
+                         core::log::Level::info,
+                         pairs ? "ev=queuez stage=translate result=paired"
+                               : "ev=queuez stage=translate result=unpaired");
         return middleware::bap::account_translation::encode_response(
-            requestBody, account.primarySoid, output, written);
+            requestBody, soid, output, written);
     }
     case BodyCodec::activityHostManagerResponse: {
         state::activity::PendingAllocation allocation{};
@@ -75,11 +128,27 @@ bool process(const ServiceRoute& route,
     }
     case BodyCodec::clientConfigResponse:
         return middleware::bap::client_config::encode_minimal_response(output, written);
-    case BodyCodec::familySubscription:
+    case BodyCodec::familySubscription: {
         written = 0;
         outcome.hasSubscription =
             middleware::bap::family_subscription::parse(requestBody, outcome.subscription);
+        // The subscribe names the record now ready for a snapshot. The family and root are the
+        // only way to tell one record's cycle from several records interleaving.
+        std::array<char, kSubscribeReportLimit> line{};
+        const int count =
+            std::snprintf(line.data(),
+                          line.size(),
+                          "ev=queuez stage=subscribe result=%s family=%u root=0x%016llX",
+                          outcome.hasSubscription ? "ok" : "unreadable",
+                          static_cast<unsigned>(outcome.subscription.familyType),
+                          static_cast<unsigned long long>(outcome.subscription.familyRootSoid));
+        if (count > 0) {
+            core::log::write(core::log::Channel::server,
+                             core::log::Level::info,
+                             {line.data(), static_cast<std::size_t>(count)});
+        }
         return outcome.hasSubscription;
+    }
     case BodyCodec::familyUnsubscription: {
         written = 0;
         outcome.hasUnsubscription =

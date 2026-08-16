@@ -22,6 +22,7 @@
 #include "../../scenarios/scenario_catalog.h"
 #include "../../socket_entry_lists/socket_entry_list_catalog.h"
 #include "../../spawn_sets/spawn_set_catalog.h"
+#include "../../vendors/vendor_catalog.h"
 #include "../build_data_catalog_runtime.h"
 #include "../domain_markers.h"
 
@@ -85,6 +86,11 @@ to_record(const constants::InvestmentConstants& value) noexcept {
            && spawn_sets::snapshot(scratch.spawnStems, counts.spawnStems)
            && spawn_sets::snapshot_hashes(scratch.spawnNameHashes, counts.spawnNameHashes)
            && hash_names::snapshot(scratch.hashNames, counts.hashNames)
+           && vendors::snapshot_index(scratch.vendorIndex, counts.vendorIndex)
+           && vendors::snapshot_definitions(scratch.vendorDefinitions, counts.vendorDefinitions)
+           && vendors::snapshot_sale_rows(scratch.vendorSaleRows, counts.vendorSaleRows)
+           && vendors::snapshot_installed_rows(scratch.vendorInstalledRows,
+                                               counts.vendorInstalledRows)
            && cache::records::canonicalize(scratch, counts);
 }
 
@@ -158,6 +164,16 @@ cache::records::MutableDomains scratch_domains(Context& state) noexcept {
             state.spawnNameHashScratch);
     const auto hashNames =
         ensure_scratch<hash_names::Name, hash_names::kNameCapacity>(state.hashNameScratch);
+    const auto vendorIndex =
+        ensure_scratch<vendors::IndexEntry, vendors::kIndexCapacity>(state.vendorIndexScratch);
+    const auto vendorDefinitions =
+        ensure_scratch<vendors::Definition, vendors::kDefinitionCapacity>(
+            state.vendorDefinitionScratch);
+    const auto vendorSaleRows =
+        ensure_scratch<vendors::SaleRow, vendors::kSaleRowCapacity>(state.vendorSaleRowScratch);
+    const auto vendorInstalledRows =
+        ensure_scratch<vendors::InstalledRow, vendors::kInstalledRowCapacity>(
+            state.vendorInstalledRowScratch);
     return {
         &state.constantsScratch,
         named,
@@ -178,6 +194,10 @@ cache::records::MutableDomains scratch_domains(Context& state) noexcept {
         spawnStems,
         spawnNameHashes,
         hashNames,
+        vendorIndex,
+        vendorDefinitions,
+        vendorSaleRows,
+        vendorInstalledRows,
     };
 }
 
@@ -210,6 +230,10 @@ void release_scratch_locked(Context& state) noexcept {
     release_bank(state.spawnStemScratch);
     release_bank(state.spawnNameHashScratch);
     release_bank(state.hashNameScratch);
+    release_bank(state.vendorIndexScratch);
+    release_bank(state.vendorDefinitionScratch);
+    release_bank(state.vendorSaleRowScratch);
+    release_bank(state.vendorInstalledRowScratch);
     state.constantsScratch = {};
 }
 
@@ -264,6 +288,12 @@ cache::records::Domains occupied_domains(Context& state,
         std::span<const spawn_sets::NameHash>{state.spawnNameHashScratch.data(),
                                               counts.spawnNameHashes},
         std::span<const hash_names::Name>{state.hashNameScratch.data(), counts.hashNames},
+        std::span<const vendors::IndexEntry>{state.vendorIndexScratch.data(), counts.vendorIndex},
+        std::span<const vendors::Definition>{state.vendorDefinitionScratch.data(),
+                                             counts.vendorDefinitions},
+        std::span<const vendors::SaleRow>{state.vendorSaleRowScratch.data(), counts.vendorSaleRows},
+        std::span<const vendors::InstalledRow>{state.vendorInstalledRowScratch.data(),
+                                               counts.vendorInstalledRows},
     };
 }
 

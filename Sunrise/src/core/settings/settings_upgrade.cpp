@@ -17,15 +17,25 @@ namespace {
 
 /** The layout version member, quoted so a value string cannot match it. */
 constexpr std::string_view kVersionMember = "\"version\"";
+
+/** One replaced member, and the layout version that changed it. */
+struct ReplacedMember {
+    /** Quoted member name, so a value string cannot match it. */
+    std::string_view name;
+    /** Replaced only while the file is older than this version. */
+    std::uint32_t version;
+};
+
 /**
- * Members replaced with the bundled default because their value form changed.
- *
- * Version 3 changed how a key binding names its key. Version 4 gave every character an authored
- * inventory, whose rows carry instance identities that have to be unique across the account and
- * agree with the equipment beside them, so a version-3 character cannot be carried forward and
- * takes the bundled one instead.
+ * Members replaced with the bundled default, each with the version that changed it.
+ * A member is listed because its value form changed, or because its default changed.
  */
-constexpr std::array<std::string_view, 2> kReplacedMembers{"\"key_bindings\"", "\"characters\""};
+constexpr std::array<ReplacedMember, 4> kReplacedMembers{{
+    {"\"key_bindings\"", 3},
+    {"\"region_private\"", 5},
+    {"\"topology\"", 5},
+    {"\"characters\"", 5},
+}};
 /** One splice per replaced member, plus the version member itself. */
 constexpr std::size_t kSpliceCapacity = kReplacedMembers.size() + 1;
 /** Room for the version member and its digits when the file predates versioning. */
@@ -202,11 +212,17 @@ bool apply(std::string_view document,
             root + 1, root + 1, {versionText.data(), static_cast<std::size_t>(length)}};
     }
 
-    for (const std::string_view member : kReplacedMembers) {
+    const std::uint32_t from = document_version(document);
+    for (const ReplacedMember& member : kReplacedMembers) {
+        // A file at or past that version keeps its own value, so an upgrade never overwrites a
+        // choice the user made against the current layout.
+        if (from >= member.version) {
+            continue;
+        }
         std::size_t replacementStart = 0;
         std::size_t replacementEnd = 0;
-        if (!value_span(document, member, start, end)
-            || !value_span(bundled, member, replacementStart, replacementEnd)) {
+        if (!value_span(document, member.name, start, end)
+            || !value_span(bundled, member.name, replacementStart, replacementEnd)) {
             // A member the file never carried needs no replacement.
             continue;
         }

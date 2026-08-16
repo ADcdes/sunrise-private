@@ -19,6 +19,7 @@
 #include "scenarios/definition.h"
 #include "socket_entry_lists/definition.h"
 #include "spawn_sets/definition.h"
+#include "vendors/definition.h"
 
 namespace sunrise::state::build_data {
 
@@ -407,6 +408,41 @@ publish_scenario_layouts(std::span<const scenarios::Definition> definitions,
  */
 [[nodiscard]] bool find_scenario_layout(std::string_view name,
                                         scenarios::Definition& definition) noexcept;
+
+/** @return True when the installed vendor index is in State. */
+[[nodiscard]] bool vendor_catalog_ready() noexcept;
+
+/**
+ * Publishes the vendor index and every extracted vendor definition in one step.
+ * @param index Complete index rows in ascending index order.
+ * @param definitions Extracted definitions in ascending index order, which may be empty.
+ * @param saleRows Complete flat sale bank in definition then row order.
+ * @param installedRows Complete flat installed bank in definition then row order.
+ * @return True when the rows pass the checks and any needed cache write succeeds.
+ */
+[[nodiscard]] bool
+publish_vendor_catalog(std::span<const vendors::IndexEntry> index,
+                       std::span<const vendors::Definition> definitions,
+                       std::span<const vendors::SaleRow> saleRows,
+                       std::span<const vendors::InstalledRow> installedRows) noexcept;
+
+/**
+ * Finds one vendor's index row, which carries the index the wire uses.
+ * @param definitionHash Vendor definition hash.
+ * @param entry Receives the matching row.
+ * @return True when the catalog is ready and exactly one row carries the hash.
+ */
+[[nodiscard]] bool find_vendor_index(std::uint32_t definitionHash,
+                                     vendors::IndexEntry& entry) noexcept;
+
+/**
+ * Finds one extracted vendor definition.
+ * @param definitionHash Vendor definition hash.
+ * @param definition Receives the matching definition.
+ * @return True when the catalog is ready and holds that definition.
+ */
+[[nodiscard]] bool find_vendor_definition(std::uint32_t definitionHash,
+                                          vendors::Definition& definition) noexcept;
 
 /** @return True only when every domain is ready and any needed cache write succeeds. */
 [[nodiscard]] bool persist() noexcept;

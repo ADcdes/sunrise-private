@@ -64,6 +64,11 @@ struct SessionState {
     bool family3Active{};
     /** Set once the family-zero full snapshot has been published to this peer. */
     bool family0Active{};
+    /**
+     * Root of a family-zero subscription that arrived before any character was selected.
+     * The peer never asks again, so the held root is answered at the first pick. Zero once sent.
+     */
+    std::uint64_t pendingBannerRoot{};
 };
 
 /** Validated opcode-505 after-image and its resident account definition. */
@@ -176,6 +181,14 @@ struct StagedPublication {
     bool armsFamily4Repush{};
     /** Root the companion used, kept because an unmapped snapshot records no residents. */
     std::uint64_t family4RepushRoot{};
+    /**
+     * A family-zero body went out and owes its delayed second copy.
+     * An answer inside the same exchange reaches the record before it writes its new state, so it
+     * is refused. The delayed copy is the one that lands.
+     */
+    bool armsBannerRepush{};
+    /** Root that copy must use. */
+    std::uint64_t bannerRepushRoot{};
 };
 
 } // namespace sunrise::server::bap::encrypted::queuez

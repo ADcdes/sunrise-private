@@ -1,6 +1,7 @@
 #include <Windows.h>
 
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <span>
 #include <string_view>
@@ -18,6 +19,7 @@
 #include "../hooks/cursor/runtime.h"
 #include "../hooks/graphics/graphics_hook_lifecycle.h"
 #include "../hooks/network/runtime.h"
+#include "../hooks/noclip/runtime.h"
 #include "../hooks/polled_input/runtime.h"
 #include "../hooks/queuez/queuez_hook_lifecycle.h"
 #include "../hooks/retail_log/retail_log_lifecycle.h"
@@ -157,6 +159,8 @@ void clear_game_targets() noexcept {
     // The teleport hooks attach whether or not the feature is on, so the interface can enable it
     // without a restart. Both replacements return immediately while nothing is requested.
     (void)hooks::teleport::install();
+    // Noclip owns its Havok-step target, so a patch-specific miss cannot disable teleport.
+    (void)hooks::noclip::install();
     (void)hooks::queuez::install();
     // The bitmap reference guard puts the none sentinel in place of a reference outside tag
     // space. Without it the widget's stored-reference reader faults.
@@ -179,10 +183,21 @@ bool activate_main_once() noexcept {
         ReleaseSRWLockExclusive(&runtime::g_lock);
         return active;
     }
+    // The image sweep dominates this call, so the pair of debug markers around it is what a
+    // boot-time measurement reads. Both are diagnostic and stay off at the usual levels.
+    core::log::write(
+        core::log::Channel::client, core::log::Level::debug, "ev=activate stage=main phase=begin");
     // The sweep stalls whichever thread calls it, so the overlay says what is happening. It
     // only reaches the screen once the presentation hooks are installed.
     core::ui::busy::begin(core::ui::busy::Task::initialization);
+    // Started after the overlay is up, because begin blocks for up to half a second waiting on
+    // presents. That wait belongs to the overlay, not to the work being measured.
+    const std::uint64_t startedTick = GetTickCount64();
     const bool active = runtime::activate_required_main_locked();
+    core::log::write_elapsed(core::log::Channel::client,
+                             "ev=activate stage=main phase=complete",
+                             startedTick,
+                             active ? "ok" : "fail");
     core::ui::busy::end(core::ui::busy::Task::initialization);
     if (!active) {
         // A failed sweep latches too: repeating it stalls the frame loop for nothing.

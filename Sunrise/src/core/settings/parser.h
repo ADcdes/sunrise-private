@@ -56,6 +56,12 @@ private:
      */
     [[nodiscard]] bool server_settings(server::Settings& output) noexcept;
     /**
+     * Parses the gameplay endpoint block on top of the fixed defaults.
+     * @param output Receives the block only after the whole object is consistent.
+     * @return True when the topology, addresses, port, and slot reserve agree.
+     */
+    [[nodiscard]] bool gameplay_settings(server::gameplay::Settings& output) noexcept;
+    /**
      * Parses the authored entitlement array. Array order is the handle order the Client finds
      * definitions by, so entries are kept exactly as configured.
      * @param output Receives the whole authored table, replacing the bundled policy.
@@ -113,6 +119,7 @@ private:
     [[nodiscard]] bool flag_runs(std::span<std::uint8_t> bank) noexcept;
     [[nodiscard]] bool flag_indices(std::span<std::uint8_t> bank) noexcept;
     [[nodiscard]] bool objective_values(std::span<std::int32_t> bank) noexcept;
+    [[nodiscard]] bool progression_values(state::unlocks::ProgressionBank& bank) noexcept;
     /**
      * Parses the optional authored family-5 override group.
      * @param output Receives both override lists; id and gate fields stay default.

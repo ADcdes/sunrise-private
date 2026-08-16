@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace sunrise::client::teleport {
+namespace sunrise::client::movement {
 
 /** Default distance, in world units along the camera's forward vector. */
 inline constexpr float kDefaultDistance = 10.0F;
@@ -10,14 +10,16 @@ inline constexpr float kDefaultDistance = 10.0F;
 inline constexpr float kMinimumDistance = 1.0F;
 /** Largest offered distance. Past this a press reliably lands through a wall or the floor. */
 inline constexpr float kMaximumDistance = 100.0F;
-/** No key is bound until one is picked, so a fresh install cannot teleport by accident. */
+/** No key is bound until one is picked, so a fresh install cannot fire a movement feature. */
 inline constexpr std::uint32_t kNoKey = 0;
 
-/** Runtime teleport configuration. This module owns it; Core settings do not carry it. */
+/** Runtime movement configuration. This module owns it; Core settings do not carry it. */
 struct Settings {
     bool enabled{false};
     float distance{kDefaultDistance};
     std::uint32_t virtualKey{kNoKey};
+    bool noclipEnabled{false};
+    std::uint32_t noclipToggleKey{kNoKey};
 };
 
 /**
@@ -39,4 +41,4 @@ void shutdown() noexcept;
  */
 bool publish(const Settings& settings) noexcept;
 
-} // namespace sunrise::client::teleport
+} // namespace sunrise::client::movement

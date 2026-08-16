@@ -14,6 +14,7 @@
 #include "../scenarios/scenario_catalog.h"
 #include "../socket_entry_lists/socket_entry_list_catalog.h"
 #include "../spawn_sets/spawn_set_catalog.h"
+#include "../vendors/vendor_catalog.h"
 #include "domain_markers.h"
 #include "persistence/publication_transaction.h"
 
@@ -263,6 +264,35 @@ bool find_investment_constants(constants::InvestmentConstants& value) noexcept {
     return constants::find(value);
 }
 
+/** @return True when the installed vendor index is in State. */
+bool vendor_catalog_ready() noexcept {
+    return vendors::count() != 0;
+}
+
+/** Publishes the vendor index and every extracted vendor definition in one step. */
+bool publish_vendor_catalog(std::span<const vendors::IndexEntry> index,
+                            std::span<const vendors::Definition> definitions,
+                            std::span<const vendors::SaleRow> saleRows,
+                            std::span<const vendors::InstalledRow> installedRows) noexcept {
+    runtime::persistence::Transaction transaction;
+    return transaction.active()
+           && transaction.finish(vendors::replace(index, definitions, saleRows, installedRows),
+                                 vendors::clear);
+}
+
+/** Finds one vendor's index row. */
+bool find_vendor_index(std::uint32_t definitionHash, vendors::IndexEntry& entry) noexcept {
+    entry = {};
+    return vendor_catalog_ready() && vendors::find_hash(definitionHash, entry);
+}
+
+/** Finds one extracted vendor definition. */
+bool find_vendor_definition(std::uint32_t definitionHash,
+                            vendors::Definition& definition) noexcept {
+    definition = {};
+    return vendor_catalog_ready() && vendors::find(definitionHash, definition);
+}
+
 namespace runtime {
 
 /** Clears every generated catalog and the configured-domain publication state. */
@@ -282,6 +312,7 @@ void clear_catalogs() noexcept {
     scenarios::clear();
     rollback_spawn_catalog_publication();
     rollback_name_catalog_publication();
+    vendors::clear();
     constants::clear();
 }
 

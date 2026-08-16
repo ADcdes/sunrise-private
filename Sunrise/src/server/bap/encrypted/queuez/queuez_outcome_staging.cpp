@@ -20,6 +20,8 @@ bool stage_service_outcome(Scratch& scratch,
     publication = {};
     SessionState after{};
     bool armsRepush = false;
+    bool armsBannerRepush = false;
+    std::uint64_t bannerRoot = 0;
     const auto* equipment = transaction_if<EquipmentSwapTransaction>(outcome);
     const auto* itemState = transaction_if<ItemStateTransaction>(outcome);
     const auto* socket = transaction_if<SocketPlugTransaction>(outcome);
@@ -35,7 +37,9 @@ bool stage_service_outcome(Scratch& scratch,
                                          response,
                                          written,
                                          after,
-                                         armsRepush);
+                                         armsRepush,
+                                         armsBannerRepush);
+        bannerRoot = outcome.subscription.familyRootSoid;
     } else if (outcome.hasUnsubscription) {
         stage_unsubscription(before, outcome.unsubscription.familyRootSoid, after);
     } else if (outcome.hasChangeCharacter) {
@@ -366,6 +370,34 @@ bool stage_service_outcome(Scratch& scratch,
                                                   bannerAfter)) {
             after = bannerAfter;
         }
+        // A family-zero subscribe that arrived before this pick was held, not answered. The pick
+        // is the first moment the pair can be built, and the peer will not ask again.
+        if (after.pendingBannerRoot != 0) {
+            middleware::queuez::Subscription held{};
+            held.familyType = kBannerFamilyType;
+            held.familyRootSoid = after.pendingBannerRoot;
+            SessionState heldAfter{};
+            bool heldRepush = false;
+            bool heldBannerRepush = false;
+            const SessionState heldBefore = after;
+            push::append_queuez_notification(scratch,
+                                             heldBefore,
+                                             held,
+                                             key,
+                                             nonce,
+                                             response,
+                                             written,
+                                             heldAfter,
+                                             heldRepush,
+                                             heldBannerRepush);
+            if (valid(heldAfter)) {
+                after = heldAfter;
+            }
+            if (heldBannerRepush) {
+                armsBannerRepush = true;
+                bannerRoot = held.familyRootSoid;
+            }
+        }
     } else {
         return true;
     }
@@ -381,6 +413,8 @@ bool stage_service_outcome(Scratch& scratch,
     }
     publication.armsFamily4Repush = armsRepush;
     publication.family4RepushRoot = armsRepush ? outcome.subscription.familyRootSoid : 0;
+    publication.armsBannerRepush = armsBannerRepush && bannerRoot != 0;
+    publication.bannerRepushRoot = publication.armsBannerRepush ? bannerRoot : 0;
     return true;
 }
 
