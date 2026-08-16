@@ -75,6 +75,13 @@ bool stage_service_outcome(Scratch& scratch,
         }
         middleware::secure_channel::advance_nonce(nonce);
         after = swap.after;
+        // Swapping the subclass slot invalidates the published ability buckets the same way an
+        // opcode-801 pick does; the rebuild is likewise asynchronous, so this owes the same
+        // delayed re-derivation rather than risking a race with whatever refresh runs below.
+        if (equipment->pending.equipmentSlotIndex
+            == static_cast<std::size_t>(state::account::inventory::EquipmentSlot::subclass)) {
+            armsAbilityRefresh = true;
+        }
         // Family four drives inventory placement, while Family zero owns the rendered appearance
         // consumed by the open cosmetic panels and world player. Its resident character record is
         // updated in place: releasing and re-adding the same key tears down the ship/banner
