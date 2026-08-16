@@ -38,7 +38,8 @@ bool g_pathResolved{};
 [[nodiscard]] bool valid(const Settings& settings) noexcept {
     return settings.distance >= kMinimumDistance && settings.distance <= kMaximumDistance
            && settings.virtualKey <= kMaximumVirtualKey
-           && settings.noclipToggleKey <= kMaximumVirtualKey;
+           && settings.noclipToggleKey <= kMaximumVirtualKey
+           && settings.swordSkateJumpKey <= kMaximumVirtualKey;
 }
 
 /** @param reason Key naming the step that failed. */
@@ -126,6 +127,13 @@ void parse(std::string_view text, Settings& output) noexcept {
         output.noclipToggleKey =
             static_cast<std::uint32_t>(std::strtoul(buffer.data(), nullptr, 0));
     }
+    if (scalar_for(text, "\"sword_skate_enabled\"", scalar)) {
+        output.swordSkateEnabled = scalar.starts_with("true");
+    }
+    if (scalar_for(text, "\"sword_skate_jump_key\"", scalar) && terminated(scalar, buffer)) {
+        output.swordSkateJumpKey =
+            static_cast<std::uint32_t>(std::strtoul(buffer.data(), nullptr, 0));
+    }
 }
 
 /**
@@ -144,12 +152,16 @@ void parse(std::string_view text, Settings& output) noexcept {
                                    "{\n  \"enabled\": %s,\n  \"distance\": %.3f,\n"
                                    "  \"virtual_key\": %u,\n"
                                    "  \"noclip_enabled\": %s,\n"
-                                   "  \"noclip_toggle_key\": %u\n}\n",
+                                   "  \"noclip_toggle_key\": %u,\n"
+                                   "  \"sword_skate_enabled\": %s,\n"
+                                   "  \"sword_skate_jump_key\": %u\n}\n",
                                    settings.enabled ? "true" : "false",
                                    static_cast<double>(settings.distance),
                                    static_cast<unsigned>(settings.virtualKey),
                                    settings.noclipEnabled ? "true" : "false",
-                                   static_cast<unsigned>(settings.noclipToggleKey));
+                                   static_cast<unsigned>(settings.noclipToggleKey),
+                                   settings.swordSkateEnabled ? "true" : "false",
+                                   static_cast<unsigned>(settings.swordSkateJumpKey));
     if (size <= 0) {
         return false;
     }

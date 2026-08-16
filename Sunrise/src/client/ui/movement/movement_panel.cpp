@@ -29,6 +29,7 @@ enum class CaptureTarget {
     none,
     teleport,
     noclip,
+    swordSkate,
 };
 
 CaptureTarget g_capturing{CaptureTarget::none};
@@ -181,6 +182,30 @@ void draw() noexcept {
     changed =
         key_picker("noclip_key", CaptureTarget::noclip, settings.noclipToggleKey, controlWidth)
         || changed;
+
+    ImGui::Spacing();
+    ImGui::Spacing();
+    ImGui::TextUnformatted("Sword Skate Fix");
+    ImGui::Separator();
+    ImGui::TextWrapped("A sword's air attack throws you forward, and a glide started while that "
+                       "throw is still carrying you keeps the speed. The client refuses to start a "
+                       "glide during the throw. This clears that refusal on the tick you press "
+                       "jump, and the client's own glide runs from there.");
+    ImGui::Spacing();
+
+    changed =
+        core::ui::components::toggle::control("Enabled##sword_skate", settings.swordSkateEnabled)
+        || changed;
+
+    ImGui::Spacing();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Jump key");
+    ImGui::SameLine(labelWidth);
+    changed =
+        key_picker(
+            "sword_skate_key", CaptureTarget::swordSkate, settings.swordSkateJumpKey, controlWidth)
+        || changed;
+    ImGui::TextWrapped("Must match the key the game jumps on. Nothing happens on any other key.");
 
     if (changed && !client::movement::publish(settings)) {
         ImGui::Spacing();
