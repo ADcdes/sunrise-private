@@ -223,7 +223,7 @@ void select_character(const middleware::web_service::Message& message, Outcome& 
                                       static_cast<unsigned>(changed));
     if (written > 0) {
         core::log::write(core::log::Channel::server,
-                         core::log::Level::info,
+                         core::log::Level::debug,
                          {line.data(), static_cast<std::size_t>(written)});
     }
 }
@@ -295,7 +295,7 @@ void mutate_equipment(const middleware::web_service::Message& message,
                       mutation.movedItemCount);
     if (count > 0) {
         core::log::write(core::log::Channel::server,
-                         core::log::Level::info,
+                         core::log::Level::debug,
                          {line.data(), static_cast<std::size_t>(count)});
     }
 }
@@ -372,7 +372,7 @@ void mutate_socket_plug(const middleware::web_service::Message& message,
         mutation.itemIndex);
     if (count > 0) {
         core::log::write(core::log::Channel::server,
-                         core::log::Level::info,
+                         core::log::Level::debug,
                          {line.data(), static_cast<std::size_t>(count)});
     }
 }
@@ -470,7 +470,7 @@ void mutate_equipped_socket_plug(const middleware::web_service::Message& message
         static_cast<unsigned long long>(replacement.auxiliary));
     if (count > 0) {
         core::log::write(core::log::Channel::server,
-                         core::log::Level::info,
+                         core::log::Level::debug,
                          {line.data(), static_cast<std::size_t>(count)});
     }
 }
@@ -521,7 +521,7 @@ void mutate_item_state(const middleware::web_service::Message& message, Outcome&
         mutation.itemIndex);
     if (count > 0) {
         core::log::write(core::log::Channel::server,
-                         core::log::Level::info,
+                         core::log::Level::debug,
                          {line.data(), static_cast<std::size_t>(count)});
     }
 }
@@ -552,7 +552,7 @@ void report_item_dismantle(const middleware::web_service::Message& message,
         quantity);
     if (count > 0) {
         core::log::write(core::log::Channel::server,
-                         result == "ok" ? core::log::Level::info : core::log::Level::warn,
+                         result == "ok" ? core::log::Level::debug : core::log::Level::warn,
                          {line.data(), static_cast<std::size_t>(count)});
     }
 }
@@ -639,7 +639,7 @@ void report_item_acquisition(const middleware::web_service::Message& message,
         static_cast<unsigned long long>(instanceSoid));
     if (count > 0) {
         core::log::write(core::log::Channel::server,
-                         result == "ok" ? core::log::Level::info : core::log::Level::warn,
+                         result == "ok" ? core::log::Level::debug : core::log::Level::warn,
                          {line.data(), static_cast<std::size_t>(count)});
     }
 }
