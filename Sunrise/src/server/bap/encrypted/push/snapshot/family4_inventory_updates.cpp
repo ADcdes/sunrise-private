@@ -151,27 +151,27 @@ bool prepare_profile_item_acquisition(Scratch& scratch,
     }
 
     std::array<char, core::log::kLineCapacity> line{};
-    const int count =
-        std::snprintf(line.data(),
-                      line.size(),
-                      "ev=profile_acquire stage=account_object result=ok family_version=%d "
-                      "account=0x%llX definition=%u item_count=%zu definition_hash=0x%08X quantity=%d "
-                      "native_row=%zu mutation_serial=%d change_slot=%u change_next_sequence=%u "
-                      "change_kind=%u account_payload_bytes=%zu objects=%zu object_order=%s",
-                      acquisition.after.family4Version,
-                      static_cast<unsigned long long>(acquisition.accountSoid),
-                      acquisition.accountDefinitionId,
-                      mutation.afterItemCount,
-                      mutation.acquiredDefinitionHash,
-                      mutation.acquiredQuantity,
-                      acquiredRow,
-                      mutation.acquiredMutationSerial,
-                      static_cast<unsigned>(kAcquisitionChangeNextWriteSlot),
-                      static_cast<unsigned>(kAcquisitionChangeNextSequence),
-                      static_cast<unsigned>(kAcquisitionChangeKind),
-                      prepared.family.objects[accountObjectIndex].payload.size(),
-                      objectCount,
-                      acquisition.appendedResident ? "item-account" : "account");
+    const int count = std::snprintf(
+        line.data(),
+        line.size(),
+        "ev=profile_acquire stage=account_object result=ok family_version=%d "
+        "account=0x%llX definition=%u item_count=%zu definition_hash=0x%08X quantity=%d "
+        "native_row=%zu mutation_serial=%d change_slot=%u change_next_sequence=%u "
+        "change_kind=%u account_payload_bytes=%zu objects=%zu object_order=%s",
+        acquisition.after.family4Version,
+        static_cast<unsigned long long>(acquisition.accountSoid),
+        acquisition.accountDefinitionId,
+        mutation.afterItemCount,
+        mutation.acquiredDefinitionHash,
+        mutation.acquiredQuantity,
+        acquiredRow,
+        mutation.acquiredMutationSerial,
+        static_cast<unsigned>(kAcquisitionChangeNextWriteSlot),
+        static_cast<unsigned>(kAcquisitionChangeNextSequence),
+        static_cast<unsigned>(kAcquisitionChangeKind),
+        prepared.family.objects[accountObjectIndex].payload.size(),
+        objectCount,
+        acquisition.appendedResident ? "item-account" : "account");
     if (count > 0) {
         core::log::write(core::log::Channel::server,
                          core::log::Level::debug,
@@ -601,30 +601,30 @@ bool prepare_item_dismantle(Scratch& scratch,
     }
 
     std::array<char, core::log::kLineCapacity> line{};
-    const int count =
-        std::snprintf(line.data(),
-                      line.size(),
-                      "ev=dismantle stage=family4_objects result=ok family_version=%d root=0x%llX "
-                      "character=0x%llX character_definition=%u instance=0x%llX item_definition=%u "
-                      "definition_hash=0x%08X inventory_index=%zu inventory_row=%u equipment_slot=%u "
-                      "moved_items=%zu items_after=%zu next_serial=%u rewards=%zu objects=%zu "
-                      "order=%s",
-                      dismantle.after.family4Version,
-                      static_cast<unsigned long long>(dismantle.after.family4RootSoid),
-                      static_cast<unsigned long long>(dismantle.characterSoid),
-                      dismantle.characterDefinitionId,
-                      static_cast<unsigned long long>(dismantle.dismantledInstanceSoid),
-                      dismantle.itemInstanceDefinitionId,
-                      mutation.dismantledItem.definitionHash,
-                      mutation.inventoryIndex,
-                      static_cast<unsigned>(mutation.inventoryRow),
-                      static_cast<unsigned>(mutation.equipmentSlot),
-                      mutation.movedInventoryItemCount,
-                      mutation.afterCharacter.inventory.count,
-                      mutation.afterCharacter.nextInventorySerial,
-                      mutation.rewardCount,
-                      objectCount,
-                      dismantle.updatesAccount ? "character_release_account" : "character_release");
+    const int count = std::snprintf(
+        line.data(),
+        line.size(),
+        "ev=dismantle stage=family4_objects result=ok family_version=%d root=0x%llX "
+        "character=0x%llX character_definition=%u instance=0x%llX item_definition=%u "
+        "definition_hash=0x%08X inventory_index=%zu inventory_row=%u equipment_slot=%u "
+        "moved_items=%zu items_after=%zu next_serial=%u rewards=%zu objects=%zu "
+        "order=%s",
+        dismantle.after.family4Version,
+        static_cast<unsigned long long>(dismantle.after.family4RootSoid),
+        static_cast<unsigned long long>(dismantle.characterSoid),
+        dismantle.characterDefinitionId,
+        static_cast<unsigned long long>(dismantle.dismantledInstanceSoid),
+        dismantle.itemInstanceDefinitionId,
+        mutation.dismantledItem.definitionHash,
+        mutation.inventoryIndex,
+        static_cast<unsigned>(mutation.inventoryRow),
+        static_cast<unsigned>(mutation.equipmentSlot),
+        mutation.movedInventoryItemCount,
+        mutation.afterCharacter.inventory.count,
+        mutation.afterCharacter.nextInventorySerial,
+        mutation.rewardCount,
+        objectCount,
+        dismantle.updatesAccount ? "character_release_account" : "character_release");
     if (count > 0) {
         core::log::write(core::log::Channel::server,
                          core::log::Level::debug,

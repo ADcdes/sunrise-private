@@ -6,11 +6,11 @@
 #include <string_view>
 
 #include "../../core/logging/log.h"
+#include "../../middleware/web_service/messages/opcode1820.h"
+#include "../../middleware/web_service/messages/opcode1901.h"
 #include "../../middleware/web_service/messages/opcode402.h"
 #include "../../middleware/web_service/messages/opcode403.h"
 #include "../../middleware/web_service/messages/opcode406.h"
-#include "../../middleware/web_service/messages/opcode1820.h"
-#include "../../middleware/web_service/messages/opcode1901.h"
 #include "../../middleware/web_service/messages/opcode504.h"
 #include "../../middleware/web_service/messages/opcode903.h"
 #include "../../state/account/account_state.h"
@@ -232,7 +232,8 @@ void select_character(const middleware::web_service::Message& message, Outcome& 
 [[nodiscard]] bool parse_equipment_instance(const middleware::web_service::Message& message,
                                             std::uint64_t& instanceSoid) noexcept {
     middleware::web_service::messages::opcode403::Request request{};
-    const bool parsed = middleware::web_service::messages::opcode403::parse_request(message, request);
+    const bool parsed =
+        middleware::web_service::messages::opcode403::parse_request(message, request);
     instanceSoid = request.instanceSoid;
     return parsed;
 }
@@ -561,13 +562,8 @@ void report_item_dismantle(const middleware::web_service::Message& message,
 void dismantle_item(const middleware::web_service::Message& message, Outcome& outcome) noexcept {
     middleware::web_service::messages::opcode402::Request request{};
     if (!middleware::web_service::messages::opcode402::parse_request(message, request)) {
-        report_item_dismantle(message,
-                              "fail",
-                              "payload_bits",
-                              request.instanceSoid,
-                              request.definitionIndex,
-                              0,
-                              0);
+        report_item_dismantle(
+            message, "fail", "payload_bits", request.instanceSoid, request.definitionIndex, 0, 0);
         return;
     }
     const std::uint64_t instanceSoid = request.instanceSoid;

@@ -1,5 +1,5 @@
-#include "../../runtime.h"
 #include "../../collectibles/collectible_catalog.h"
+#include "../../runtime.h"
 #include "../../runtime/persistence/publication_transaction.h"
 #include "../details/item_detail_catalog.h"
 #include "../item_catalog.h"
@@ -87,8 +87,7 @@ bool is_consumed_on_apply(std::uint16_t itemDefinitionIndex, std::uint8_t bucket
 bool is_profile_action_source(std::uint16_t itemDefinitionIndex, std::uint8_t bucketId) noexcept {
     items::details::Definition detail{};
     inventory::buckets::Descriptor bucket{};
-    if ((bucketId != kOrnamentBucketId && bucketId != kShaderBucketId)
-        || !socket_plug_rules_ready()
+    if ((bucketId != kOrnamentBucketId && bucketId != kShaderBucketId) || !socket_plug_rules_ready()
         || !find_configured_item_detail(itemDefinitionIndex, detail)
         || detail.definitionIndex != itemDefinitionIndex || detail.bucketId != bucketId
         || !find_inventory_bucket_descriptor(bucketId, bucket)

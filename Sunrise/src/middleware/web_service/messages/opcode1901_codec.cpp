@@ -37,8 +37,7 @@ constexpr std::uint64_t kSelectorStride = 4;
 } // namespace
 
 /** Compares a decoded selector against the part of an instance identity the wire carries. */
-bool identifies_instance(std::uint64_t instanceIdentityToken,
-                         std::uint64_t instanceSoid) noexcept {
+bool identifies_instance(std::uint64_t instanceIdentityToken, std::uint64_t instanceSoid) noexcept {
     return instanceIdentityToken != 0
            && (instanceSoid & kInstanceIdentityMask) == instanceIdentityToken;
 }

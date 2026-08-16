@@ -185,8 +185,7 @@ cache::records::MutableDomains scratch_domains(Context& state) noexcept {
  * Releases one transient cache snapshot bank without walking its capacity.
  * @param storage Bank emptied and handed back to the allocator.
  */
-template <typename Value>
-void release_bank(std::vector<Value>& storage) noexcept {
+template <typename Value> void release_bank(std::vector<Value>& storage) noexcept {
     storage.clear();
     storage.shrink_to_fit();
 }

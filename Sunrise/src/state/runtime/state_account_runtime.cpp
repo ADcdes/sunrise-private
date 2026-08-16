@@ -125,28 +125,28 @@ void report_profile_acquisition(std::string_view stage,
                                 std::int32_t acquiredQuantity,
                                 bool appended) noexcept {
     std::array<char, core::log::kLineCapacity> line{};
-    const int count =
-        std::snprintf(line.data(),
-                      line.size(),
-                      "ev=profile_acquire stage=%.*s result=%.*s reason=%.*s definition_hash=0x%08X "
-                      "account=0x%llX instance=0x%llX bucket=%u profile_index=%zu item_count=%zu "
-                      "quantity_before=%d "
-                      "quantity_after=%d appended=%u",
-                      static_cast<int>(stage.size()),
-                      stage.data(),
-                      static_cast<int>(result.size()),
-                      result.data(),
-                      static_cast<int>(reason.size()),
-                      reason.data(),
-                      definitionHash,
-                      static_cast<unsigned long long>(accountSoid),
-                      static_cast<unsigned long long>(instanceSoid),
-                      static_cast<unsigned>(bucketId),
-                      profileIndex,
-                      itemCount,
-                      previousQuantity,
-                      acquiredQuantity,
-                      static_cast<unsigned>(appended));
+    const int count = std::snprintf(
+        line.data(),
+        line.size(),
+        "ev=profile_acquire stage=%.*s result=%.*s reason=%.*s definition_hash=0x%08X "
+        "account=0x%llX instance=0x%llX bucket=%u profile_index=%zu item_count=%zu "
+        "quantity_before=%d "
+        "quantity_after=%d appended=%u",
+        static_cast<int>(stage.size()),
+        stage.data(),
+        static_cast<int>(result.size()),
+        result.data(),
+        static_cast<int>(reason.size()),
+        reason.data(),
+        definitionHash,
+        static_cast<unsigned long long>(accountSoid),
+        static_cast<unsigned long long>(instanceSoid),
+        static_cast<unsigned>(bucketId),
+        profileIndex,
+        itemCount,
+        previousQuantity,
+        acquiredQuantity,
+        static_cast<unsigned>(appended));
     if (count > 0) {
         core::log::write(core::log::Channel::state,
                          result == "ok" ? core::log::Level::debug : core::log::Level::warn,

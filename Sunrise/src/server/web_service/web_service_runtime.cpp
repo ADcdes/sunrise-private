@@ -231,8 +231,7 @@ bool consume(std::span<const std::byte> request,
     } else {
         dispatched = false;
     }
-    const bool prepared =
-        outcome.hasSelectedCharacter || outcome.mutation.index() != kNoMutation;
+    const bool prepared = outcome.hasSelectedCharacter || outcome.mutation.index() != kNoMutation;
 
     middleware::web_service::ResponseShape shape{};
     resolve_response_shape(message.opcode, shape);
