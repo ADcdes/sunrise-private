@@ -1,5 +1,4 @@
 #include <array>
-#include <new>
 #include <span>
 #include <vector>
 
@@ -50,10 +49,10 @@ bool build_item_rows(const reader::Source& source,
     // must still revisit the table even when definitions and detail domains already published.
     const bool needRows = needDefinitions || needDetailRows || needBuckets;
     bool published = !needRows;
-    if (needDetails && !storage.details) {
-        storage.details.reset(new (std::nothrow) build_details::Definition[kDetailCapacity]);
+    if (needDetails && storage.details.size() != kDetailCapacity) {
+        storage.details.assign(kDetailCapacity, build_details::Definition{});
     }
-    const bool detailStorageReady = !needDetails || static_cast<bool>(storage.details);
+    const bool detailStorageReady = !needDetails || storage.details.size() == kDetailCapacity;
     const std::span<const std::byte> container{storage.child};
     reason = "rows";
     // The detail closure is gathered during this one walk. Collections can name any installed
@@ -145,8 +144,7 @@ bool build_item_rows(const reader::Source& source,
         }
         if (needDetails) {
             published = state::build_data::publish_configured_item_details(
-                std::span<build_details::Definition>{storage.details.get(), kDetailCapacity}.first(
-                    builtDetailCount));
+                std::span<build_details::Definition>{storage.details}.first(builtDetailCount));
             report_detail_count(detailCount, builtDetailCount);
         }
         if (published && needSocketPlugs) {

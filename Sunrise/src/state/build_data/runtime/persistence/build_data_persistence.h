@@ -3,7 +3,7 @@
 #include <Windows.h>
 
 #include <array>
-#include <memory>
+#include <vector>
 
 #include "../../../../core/filesystem/path.h"
 #include "../../../content/content_catalog.h"
@@ -28,24 +28,24 @@ namespace sunrise::state::build_data::runtime::persistence {
 /** Fixed cache paths, identity, and canonical snapshot storage guarded by one State lock. */
 struct Context {
     SRWLOCK lock{SRWLOCK_INIT};
-    std::unique_ptr<content::Definition[]> namedScratch{};
-    std::unique_ptr<items::Definition[]> itemScratch{};
-    std::unique_ptr<collectibles::Definition[]> collectibleScratch{};
-    std::unique_ptr<material_requirements::Definition[]> materialRequirementSetScratch{};
-    std::unique_ptr<items::details::Definition[]> itemDetailScratch{};
-    std::unique_ptr<items::socket_plugs::Rule[]> socketPlugRuleScratch{};
-    std::unique_ptr<items::socket_plugs::Pool[]> socketPlugPoolScratch{};
-    std::unique_ptr<items::socket_plugs::Member[]> socketPlugMemberScratch{};
-    std::unique_ptr<inventory::buckets::Descriptor[]> inventoryBucketScratch{};
-    std::unique_ptr<socket_entry_lists::Definition[]> socketEntryListScratch{};
-    std::unique_ptr<socket_entry_lists::EntryTable[]> socketEntryTableScratch{};
-    std::unique_ptr<abilities::Definition[]> abilityBucketScratch{};
-    std::unique_ptr<progressions::Definition[]> progressionScratch{};
-    std::unique_ptr<scenarios::Definition[]> scenarioScratch{};
-    std::unique_ptr<scenarios::RosterGroup[]> rosterGroupScratch{};
-    std::unique_ptr<spawn_sets::Stem[]> spawnStemScratch{};
-    std::unique_ptr<spawn_sets::NameHash[]> spawnNameHashScratch{};
-    std::unique_ptr<hash_names::Name[]> hashNameScratch{};
+    std::vector<content::Definition> namedScratch{};
+    std::vector<items::Definition> itemScratch{};
+    std::vector<collectibles::Definition> collectibleScratch{};
+    std::vector<material_requirements::Definition> materialRequirementSetScratch{};
+    std::vector<items::details::Definition> itemDetailScratch{};
+    std::vector<items::socket_plugs::Rule> socketPlugRuleScratch{};
+    std::vector<items::socket_plugs::Pool> socketPlugPoolScratch{};
+    std::vector<items::socket_plugs::Member> socketPlugMemberScratch{};
+    std::vector<inventory::buckets::Descriptor> inventoryBucketScratch{};
+    std::vector<socket_entry_lists::Definition> socketEntryListScratch{};
+    std::vector<socket_entry_lists::EntryTable> socketEntryTableScratch{};
+    std::vector<abilities::Definition> abilityBucketScratch{};
+    std::vector<progressions::Definition> progressionScratch{};
+    std::vector<scenarios::Definition> scenarioScratch{};
+    std::vector<scenarios::RosterGroup> rosterGroupScratch{};
+    std::vector<spawn_sets::Stem> spawnStemScratch{};
+    std::vector<spawn_sets::NameHash> spawnNameHashScratch{};
+    std::vector<hash_names::Name> hashNameScratch{};
     cache::records::InvestmentConstants constantsScratch{};
     core::path::Buffer cacheDirectory;
     core::path::Buffer cachePath;

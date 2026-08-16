@@ -3,8 +3,8 @@
 #include <Windows.h>
 
 #include <algorithm>
-#include <new>
 #include <span>
+#include <vector>
 
 #include "../../../../core/ui/busy/busy.h"
 #include "../../abilities/ability_bucket_catalog.h"
@@ -30,13 +30,17 @@ namespace {
 
 Context g_context;
 
-/** Lazily allocates one bounded cache-snapshot bank and exposes all rows on success. */
+/**
+ * Lazily sizes one bounded cache-snapshot bank and exposes all rows.
+ * @param storage Bank held by the caller's context, resized on first use.
+ * @return The whole bank.
+ */
 template <typename Value, std::size_t Capacity>
-[[nodiscard]] std::span<Value> ensure_scratch(std::unique_ptr<Value[]>& storage) noexcept {
-    if (!storage) {
-        storage.reset(new (std::nothrow) Value[Capacity]);
+[[nodiscard]] std::span<Value> ensure_scratch(std::vector<Value>& storage) noexcept {
+    if (storage.size() != Capacity) {
+        storage.assign(Capacity, Value{});
     }
-    return {storage.get(), storage ? Capacity : 0};
+    return storage;
 }
 
 /** @param value Published runtime constants. @return The packed header form. */
@@ -177,26 +181,36 @@ cache::records::MutableDomains scratch_domains(Context& state) noexcept {
     };
 }
 
+/**
+ * Releases one transient cache snapshot bank without walking its capacity.
+ * @param storage Bank emptied and handed back to the allocator.
+ */
+template <typename Value>
+void release_bank(std::vector<Value>& storage) noexcept {
+    storage.clear();
+    storage.shrink_to_fit();
+}
+
 /** Releases transient cache snapshot banks without allocating or walking their capacities. */
 void release_scratch_locked(Context& state) noexcept {
-    state.namedScratch.reset();
-    state.itemScratch.reset();
-    state.collectibleScratch.reset();
-    state.materialRequirementSetScratch.reset();
-    state.itemDetailScratch.reset();
-    state.socketPlugRuleScratch.reset();
-    state.socketPlugPoolScratch.reset();
-    state.socketPlugMemberScratch.reset();
-    state.inventoryBucketScratch.reset();
-    state.socketEntryListScratch.reset();
-    state.socketEntryTableScratch.reset();
-    state.abilityBucketScratch.reset();
-    state.progressionScratch.reset();
-    state.scenarioScratch.reset();
-    state.rosterGroupScratch.reset();
-    state.spawnStemScratch.reset();
-    state.spawnNameHashScratch.reset();
-    state.hashNameScratch.reset();
+    release_bank(state.namedScratch);
+    release_bank(state.itemScratch);
+    release_bank(state.collectibleScratch);
+    release_bank(state.materialRequirementSetScratch);
+    release_bank(state.itemDetailScratch);
+    release_bank(state.socketPlugRuleScratch);
+    release_bank(state.socketPlugPoolScratch);
+    release_bank(state.socketPlugMemberScratch);
+    release_bank(state.inventoryBucketScratch);
+    release_bank(state.socketEntryListScratch);
+    release_bank(state.socketEntryTableScratch);
+    release_bank(state.abilityBucketScratch);
+    release_bank(state.progressionScratch);
+    release_bank(state.scenarioScratch);
+    release_bank(state.rosterGroupScratch);
+    release_bank(state.spawnStemScratch);
+    release_bank(state.spawnNameHashScratch);
+    release_bank(state.hashNameScratch);
     state.constantsScratch = {};
 }
 
@@ -214,43 +228,43 @@ void clear_locked(Context& state) noexcept {
 /** Gives read-only views over the used rows of one canonical snapshot. */
 cache::records::Domains occupied_domains(Context& state,
                                          const cache::records::DomainCounts& counts) noexcept {
-    const std::span<const items::details::Definition> itemDetails{state.itemDetailScratch.get(),
+    const std::span<const items::details::Definition> itemDetails{state.itemDetailScratch.data(),
                                                                   counts.itemDetails};
     const std::span<const items::socket_plugs::Rule> socketPlugRules{
-        state.socketPlugRuleScratch.get(), counts.socketPlugRules};
+        state.socketPlugRuleScratch.data(), counts.socketPlugRules};
     const std::span<const items::socket_plugs::Pool> socketPlugPools{
-        state.socketPlugPoolScratch.get(), counts.socketPlugPools};
+        state.socketPlugPoolScratch.data(), counts.socketPlugPools};
     const std::span<const items::socket_plugs::Member> socketPlugMembers{
-        state.socketPlugMemberScratch.get(), counts.socketPlugMembers};
+        state.socketPlugMemberScratch.data(), counts.socketPlugMembers};
     return {
         state.constantsScratch,
-        std::span<const content::Definition>{state.namedScratch.get(), counts.named},
-        std::span<const build_data::items::Definition>{state.itemScratch.get(), counts.items},
-        std::span<const build_data::collectibles::Definition>{state.collectibleScratch.get(),
+        std::span<const content::Definition>{state.namedScratch.data(), counts.named},
+        std::span<const build_data::items::Definition>{state.itemScratch.data(), counts.items},
+        std::span<const build_data::collectibles::Definition>{state.collectibleScratch.data(),
                                                               counts.collectibles},
         std::span<const material_requirements::Definition>{
-            state.materialRequirementSetScratch.get(), counts.materialRequirementSets},
+            state.materialRequirementSetScratch.data(), counts.materialRequirementSets},
         itemDetails,
         socketPlugRules,
         socketPlugPools,
         socketPlugMembers,
-        std::span<const inventory::buckets::Descriptor>{state.inventoryBucketScratch.get(),
+        std::span<const inventory::buckets::Descriptor>{state.inventoryBucketScratch.data(),
                                                         counts.inventoryBuckets},
-        std::span<const socket_entry_lists::Definition>{state.socketEntryListScratch.get(),
+        std::span<const socket_entry_lists::Definition>{state.socketEntryListScratch.data(),
                                                         counts.socketEntryLists},
-        std::span<const socket_entry_lists::EntryTable>{state.socketEntryTableScratch.get(),
+        std::span<const socket_entry_lists::EntryTable>{state.socketEntryTableScratch.data(),
                                                         counts.socketEntryTables},
-        std::span<const abilities::Definition>{state.abilityBucketScratch.get(),
+        std::span<const abilities::Definition>{state.abilityBucketScratch.data(),
                                                counts.abilityBuckets},
-        std::span<const progressions::Definition>{state.progressionScratch.get(),
+        std::span<const progressions::Definition>{state.progressionScratch.data(),
                                                   counts.progressions},
-        std::span<const scenarios::Definition>{state.scenarioScratch.get(), counts.scenarios},
-        std::span<const scenarios::RosterGroup>{state.rosterGroupScratch.get(),
+        std::span<const scenarios::Definition>{state.scenarioScratch.data(), counts.scenarios},
+        std::span<const scenarios::RosterGroup>{state.rosterGroupScratch.data(),
                                                 counts.rosterGroups},
-        std::span<const spawn_sets::Stem>{state.spawnStemScratch.get(), counts.spawnStems},
-        std::span<const spawn_sets::NameHash>{state.spawnNameHashScratch.get(),
+        std::span<const spawn_sets::Stem>{state.spawnStemScratch.data(), counts.spawnStems},
+        std::span<const spawn_sets::NameHash>{state.spawnNameHashScratch.data(),
                                               counts.spawnNameHashes},
-        std::span<const hash_names::Name>{state.hashNameScratch.get(), counts.hashNames},
+        std::span<const hash_names::Name>{state.hashNameScratch.data(), counts.hashNames},
     };
 }
 

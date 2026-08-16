@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <new>
 
 #include "../../../../state/build_data/runtime.h"
 
@@ -61,19 +60,12 @@ bool SocketPlugBuild::prepare(
         || itemDefinitions.size() > state::build_data::items::kDefinitionCapacity) {
         return false;
     }
-    rules_.reset(new (std::nothrow) socket_plugs::Rule[socket_plugs::kRuleCapacity]);
-    pools_.reset(new (std::nothrow) socket_plugs::Pool[socket_plugs::kPoolCapacity]);
-    members_.reset(new (std::nothrow) socket_plugs::Member[socket_plugs::kMemberCapacity]);
-    candidates_.reset(new (std::nothrow)
-                          socket_plugs::Member[state::build_data::items::kDefinitionCapacity]);
-    categoryMembers_.reset(
-        new (std::nothrow)
-            socket_plugs::Member[kCategoryCount * state::build_data::items::kDefinitionCapacity]);
-    lookup_.reset(new (std::nothrow) PoolLookup[kLookupCapacity]);
-    if (!rules_ || !pools_ || !members_ || !candidates_ || !categoryMembers_ || !lookup_) {
-        release();
-        return false;
-    }
+    rules_.assign(socket_plugs::kRuleCapacity, {});
+    pools_.assign(socket_plugs::kPoolCapacity, {});
+    members_.assign(socket_plugs::kMemberCapacity, {});
+    candidates_.assign(state::build_data::items::kDefinitionCapacity, {});
+    categoryMembers_.assign(kCategoryCount * state::build_data::items::kDefinitionCapacity, {});
+    lookup_.assign(kLookupCapacity, {});
     pools_[socket_plugs::kEmptyPoolIndex] = {};
     poolCount_ = 1;
     for (std::size_t item = 0; item < itemDefinitions.size(); ++item) {
@@ -100,7 +92,7 @@ bool SocketPlugBuild::prepare(
 /** Appends one package member after enforcing the installed item-table bound. */
 bool SocketPlugBuild::add(std::uint32_t itemDefinitionIndex,
                           std::size_t itemDefinitionCount) noexcept {
-    if (!candidates_ || itemDefinitionIndex >= itemDefinitionCount
+    if (candidates_.empty() || itemDefinitionIndex >= itemDefinitionCount
         || itemDefinitionIndex >= state::build_data::items::kDefinitionCapacity
         || candidateCount_ >= state::build_data::items::kDefinitionCapacity) {
         return false;
@@ -112,17 +104,17 @@ bool SocketPlugBuild::add(std::uint32_t itemDefinitionIndex,
 /** Expands special category seeds, sorts/deduplicates, then interns one exact pool. */
 bool SocketPlugBuild::intern(std::uint32_t& poolIndex) noexcept {
     poolIndex = socket_plugs::kEmptyPoolIndex;
-    if (!candidates_ || !categoryMembers_ || !lookup_) {
+    if (candidates_.empty() || categoryMembers_.empty() || lookup_.empty()) {
         return false;
     }
-    std::sort(candidates_.get(), candidates_.get() + candidateCount_);
+    std::sort(candidates_.data(), candidates_.data() + candidateCount_);
     candidateCount_ = static_cast<std::size_t>(
-        std::unique(candidates_.get(), candidates_.get() + candidateCount_) - candidates_.get());
+        std::unique(candidates_.data(), candidates_.data() + candidateCount_) - candidates_.data());
     std::array<bool, kCategoryCount> expand{};
     // Category codes were indexed by native item definition index during prepare().
     for (std::size_t family = 0; family < kCategoryCount; ++family) {
         const auto* familyMembers =
-            categoryMembers_.get() + family * state::build_data::items::kDefinitionCapacity;
+            categoryMembers_.data() + family * state::build_data::items::kDefinitionCapacity;
         for (std::size_t seed = 0; seed < candidateCount_ && !expand[family]; ++seed) {
             expand[family] = std::binary_search(
                 familyMembers, familyMembers + categoryCounts_[family], candidates_[seed]);
@@ -137,13 +129,13 @@ bool SocketPlugBuild::intern(std::uint32_t& poolIndex) noexcept {
             return false;
         }
         const auto* first =
-            categoryMembers_.get() + family * state::build_data::items::kDefinitionCapacity;
-        std::copy_n(first, categoryCounts_[family], candidates_.get() + candidateCount_);
+            categoryMembers_.data() + family * state::build_data::items::kDefinitionCapacity;
+        std::copy_n(first, categoryCounts_[family], candidates_.data() + candidateCount_);
         candidateCount_ += categoryCounts_[family];
     }
-    std::sort(candidates_.get(), candidates_.get() + candidateCount_);
+    std::sort(candidates_.data(), candidates_.data() + candidateCount_);
     candidateCount_ = static_cast<std::size_t>(
-        std::unique(candidates_.get(), candidates_.get() + candidateCount_) - candidates_.get());
+        std::unique(candidates_.data(), candidates_.data() + candidateCount_) - candidates_.data());
     if (candidateCount_ == 0) {
         return true;
     }
@@ -171,7 +163,7 @@ bool SocketPlugBuild::intern(std::uint32_t& poolIndex) noexcept {
             poolIndex = static_cast<std::uint32_t>(poolCount_);
             pools_[poolCount_++] = {static_cast<std::uint32_t>(memberCount_),
                                     static_cast<std::uint32_t>(candidateCount_)};
-            std::copy_n(candidates_.get(), candidateCount_, members_.get() + memberCount_);
+            std::copy_n(candidates_.data(), candidateCount_, members_.data() + memberCount_);
             memberCount_ += candidateCount_;
             slot = {fingerprint, poolIndex};
             return true;
@@ -181,9 +173,9 @@ bool SocketPlugBuild::intern(std::uint32_t& poolIndex) noexcept {
         }
         const socket_plugs::Pool& pool = pools_[slot.poolIndex];
         if (pool.memberCount == candidateCount_
-            && std::equal(candidates_.get(),
-                          candidates_.get() + candidateCount_,
-                          members_.get() + pool.memberOffset)) {
+            && std::equal(candidates_.data(),
+                          candidates_.data() + candidateCount_,
+                          members_.data() + pool.memberOffset)) {
             poolIndex = slot.poolIndex;
             return true;
         }
@@ -196,7 +188,7 @@ bool SocketPlugBuild::append(const tables::items::Row& item,
                              std::span<const std::byte> itemDefinition,
                              std::span<const std::byte> plugSetTable,
                              std::size_t itemDefinitionCount) noexcept {
-    if (!rules_ || item.definitionIndex >= itemDefinitionCount
+    if (rules_.empty() || item.definitionIndex >= itemDefinitionCount
         || item.socketCount > socket_plugs::kLaneCapacity) {
         return false;
     }
@@ -229,10 +221,10 @@ bool SocketPlugBuild::append(const tables::items::Row& item,
 /** Publishes the bounded relation and releases all transient interning memory. */
 bool SocketPlugBuild::publish() noexcept {
     const bool published =
-        rules_ && pools_ && members_
-        && state::build_data::publish_socket_plug_rules(std::span(rules_.get(), ruleCount_),
-                                                        std::span(pools_.get(), poolCount_),
-                                                        std::span(members_.get(), memberCount_));
+        !rules_.empty() && !pools_.empty() && !members_.empty()
+        && state::build_data::publish_socket_plug_rules(std::span(rules_.data(), ruleCount_),
+                                                        std::span(pools_.data(), poolCount_),
+                                                        std::span(members_.data(), memberCount_));
     release();
     return published;
 }
@@ -256,12 +248,18 @@ std::size_t SocketPlugBuild::member_count() const noexcept {
 
 /** Drops all heap-backed extraction scratch and resets every count. */
 void SocketPlugBuild::release() noexcept {
-    rules_.reset();
-    pools_.reset();
-    members_.reset();
-    candidates_.reset();
-    categoryMembers_.reset();
-    lookup_.reset();
+    rules_.clear();
+    rules_.shrink_to_fit();
+    pools_.clear();
+    pools_.shrink_to_fit();
+    members_.clear();
+    members_.shrink_to_fit();
+    candidates_.clear();
+    candidates_.shrink_to_fit();
+    categoryMembers_.clear();
+    categoryMembers_.shrink_to_fit();
+    lookup_.clear();
+    lookup_.shrink_to_fit();
     categoryCounts_ = {};
     trackerMembers_ = {};
     trackerCount_ = 0;

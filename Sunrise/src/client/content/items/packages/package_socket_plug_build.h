@@ -3,8 +3,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <span>
+#include <vector>
 
 #include "../../../../middleware/content/packages/tables/items.h"
 #include "../../../../state/build_data/items/item_catalog.h"
@@ -56,12 +56,12 @@ private:
     static constexpr std::size_t kCategoryCount = 3;
     static constexpr std::size_t kLookupCapacity = 1U << 19U;
 
-    std::unique_ptr<socket_plugs::Rule[]> rules_{};
-    std::unique_ptr<socket_plugs::Pool[]> pools_{};
-    std::unique_ptr<socket_plugs::Member[]> members_{};
-    std::unique_ptr<socket_plugs::Member[]> candidates_{};
-    std::unique_ptr<socket_plugs::Member[]> categoryMembers_{};
-    std::unique_ptr<PoolLookup[]> lookup_{};
+    std::vector<socket_plugs::Rule> rules_{};
+    std::vector<socket_plugs::Pool> pools_{};
+    std::vector<socket_plugs::Member> members_{};
+    std::vector<socket_plugs::Member> candidates_{};
+    std::vector<socket_plugs::Member> categoryMembers_{};
+    std::vector<PoolLookup> lookup_{};
     std::array<std::size_t, kCategoryCount> categoryCounts_{};
     std::array<socket_plugs::Member, 3> trackerMembers_{};
     std::size_t trackerCount_{};

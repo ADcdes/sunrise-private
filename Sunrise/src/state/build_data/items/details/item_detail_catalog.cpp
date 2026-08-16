@@ -4,9 +4,8 @@
 #include <array>
 #include <bitset>
 #include <limits>
-#include <memory>
-#include <new>
 #include <span>
+#include <vector>
 
 #include "../../table.h"
 #include "../item_catalog.h"
@@ -21,7 +20,7 @@ constexpr std::size_t kNativeDefinitionIndexCapacity =
 constexpr std::uint16_t kEmptyLookupRow = (std::numeric_limits<std::uint16_t>::max)();
 
 Lock g_lock;
-std::unique_ptr<Definition[]> g_definitions;
+std::vector<Definition> g_definitions;
 std::size_t g_definitionCount{};
 // Native definition index to detail row, rebuilt with the table under the same exclusive hold.
 std::array<std::uint16_t, kNativeDefinitionIndexCapacity> g_lookup{};
@@ -85,7 +84,8 @@ static_assert(kDefinitionCapacity < kEmptyLookupRow);
 /** Clears every generated configured item detail under the catalog lock. */
 void clear() noexcept {
     const Lock::Exclusive guard(g_lock);
-    g_definitions.reset();
+    g_definitions.clear();
+    g_definitions.shrink_to_fit();
     g_definitionCount = 0;
     std::fill(g_lookup.begin(), g_lookup.end(), kEmptyLookupRow);
 }
@@ -112,11 +112,7 @@ bool replace(std::span<const Definition> definitions) noexcept {
         return false;
     }
 
-    std::unique_ptr<Definition[]> staged{new (std::nothrow) Definition[definitions.size()]};
-    if (!staged) {
-        return false;
-    }
-    std::copy(definitions.begin(), definitions.end(), staged.get());
+    std::vector<Definition> staged(definitions.begin(), definitions.end());
 
     const Lock::Exclusive guard(g_lock);
     std::fill(g_lookup.begin(), g_lookup.end(), kEmptyLookupRow);
@@ -132,7 +128,7 @@ bool replace(std::span<const Definition> definitions) noexcept {
 bool find(std::uint16_t definitionIndex, Definition& definition) noexcept {
     definition = {};
     const Lock::Shared guard(g_lock);
-    const std::span<const Definition> rows{g_definitions.get(), g_definitionCount};
+    const std::span<const Definition> rows{g_definitions.data(), g_definitionCount};
     const std::uint16_t row = g_lookup[definitionIndex];
     const bool found = row != kEmptyLookupRow && row < rows.size();
     if (found) {
@@ -149,7 +145,7 @@ bool snapshot(std::span<Definition> output, std::size_t& count) noexcept {
         return false;
     }
     if (g_definitionCount != 0) {
-        std::copy_n(g_definitions.get(), g_definitionCount, output.begin());
+        std::copy_n(g_definitions.data(), g_definitionCount, output.begin());
     }
     count = g_definitionCount;
     return true;

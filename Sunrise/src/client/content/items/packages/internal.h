@@ -4,7 +4,6 @@
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <span>
 #include <vector>
 
@@ -73,7 +72,7 @@ struct Storage {
         equipmentSlotByBucket{};
     DetailRequests detailRequests{};
     std::array<std::uint16_t, kDetailCapacity> requestedDetailIndices{};
-    std::unique_ptr<state::build_data::items::details::Definition[]> details{};
+    std::vector<state::build_data::items::details::Definition> details{};
     AuthoredHashes authoredHashes{};
     std::vector<std::byte> abilityTable{};
     std::vector<std::byte> abilityPool{};
