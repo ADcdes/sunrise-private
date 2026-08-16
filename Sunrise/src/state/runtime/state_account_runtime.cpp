@@ -455,6 +455,40 @@ apply_collection_materials(const AccountState& before,
     return false;
 }
 
+/**
+ * Takes one unit of an owned socket action source, releasing the row when its last unit goes.
+ *
+ * An action source is an instanced profile row, so the authored-cost path cannot spend it. The
+ * row keeps its identity and position while units remain, because the Client addresses it by that
+ * identity. An emptied row is removed and the rows after it move up, which is the same shape the
+ * authored-cost path leaves behind when a stack empties.
+ *
+ * @param account Account whose profile stacks are spent in place.
+ * @param definitionHash Plug definition being applied.
+ * @return True when one unit was taken.
+ */
+[[nodiscard]] bool spend_plug_source(AccountState& account, std::uint32_t definitionHash) noexcept {
+    std::size_t row = account.profileItemCount;
+    for (std::size_t index = 0; index < account.profileItemCount; ++index) {
+        if (account.profileItems[index].definitionHash == definitionHash
+            && account.profileItems[index].quantity > 0) {
+            row = index;
+            break;
+        }
+    }
+    if (row >= account.profileItemCount) {
+        return false;
+    }
+    if (--account.profileItems[row].quantity > 0) {
+        return true;
+    }
+    for (std::size_t index = row; index + 1U < account.profileItemCount; ++index) {
+        account.profileItems[index] = account.profileItems[index + 1U];
+    }
+    account.profileItems[--account.profileItemCount] = {};
+    return true;
+}
+
 /** Applies one dense installed action-cost set resolved from the selected plug or action row. */
 [[nodiscard]] bool
 apply_action_materials(const AccountState& before,
@@ -1199,6 +1233,18 @@ character_item_at(CharacterState& character, const CharacterItemLocation& locati
             || !apply_action_materials(snapshot, materialSet, chargedAccount, profileChanged))) {
         return fail("materials");
     }
+
+    // Applying spends the stack the plug came from. The insertion cost above is a separate
+    // authored charge that leaves the plug itself untouched, so the unit is taken here.
+    //
+    // The authored-cost path cannot do this. It refuses any row carrying an instance key, because
+    // it exists for the non-instanced currency and material stacks, and an action source always
+    // carries one. Spending one is therefore its own transition: the row keeps its identity while
+    // any unit remains, and releases it with the row once the last unit goes.
+    if (consumesStack && !spend_plug_source(chargedAccount, plugDefinition.definitionHash)) {
+        return fail("plug_stack");
+    }
+    profileChanged = profileChanged || consumesStack;
 
     authored_inventory::Sockets authoredSockets{};
     if (target->sockets.policy == authored_inventory::SocketPolicy::nativeDefaults) {
