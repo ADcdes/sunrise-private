@@ -200,6 +200,38 @@ void chosen_sources(const Walk& walk,
 }
 
 /**
+ * Claims a bucket kind for every forced-active bundle sibling the 6 canonical selections do not
+ * already cover. An Attunement bundle can carry a member that fully replaces an ability (Phoenix
+ * Dive replacing the class ability, rather than an ordinary Rift variant) under its own distinct
+ * bucket, separate from the class's ordinary one, even though it is not itself one of the 6
+ * summary picks. Its hash would otherwise never be filed, because nothing ever claims that
+ * bucket's kind. A sibling with no destination bucket (a passive node) or one whose bucket is
+ * already claimed is skipped rather than treated as a failure, since most bundle members are
+ * exactly that.
+ * @param walk Subclass walk state.
+ * @param forcedActive Entries active regardless of plug source, from a bundled pick.
+ * @param output Bucket kinds, extended in place.
+ */
+void claim_bundle_kinds(const Walk& walk,
+                        const std::array<bool, pool::kEntryCapacity>& forcedActive,
+                        domain::Definition& output) noexcept {
+    for (std::size_t entryIndex = 0; entryIndex < walk.entryCount; ++entryIndex) {
+        if (!forcedActive[entryIndex]) {
+            continue;
+        }
+        std::array<pool::PoolRecord, pool::kPoolRecordCapacity> records{};
+        std::uint8_t bucket = 0;
+        if (records_of(walk, walk.entries[entryIndex], 0, records) == 0
+            || records[0].kind == pool::kEmptyByte
+            || !selector_destination(walk, static_cast<std::uint8_t>(entryIndex), bucket)
+            || output.buckets[bucket].kind != domain::kEmptyBucketKind) {
+            continue;
+        }
+        output.buckets[bucket].kind = records[0].kind;
+    }
+}
+
+/**
  * Files one pool record's hash into the bucket its category names, or into the overflow bank.
  * @param record Pool record carrying a definition hash.
  * @param output Row receiving the hash.
@@ -248,10 +280,12 @@ bool build_ability_buckets(const reader::Source& source,
         return false;
     }
     // Kinds must be complete before any hash is filed, because a hash is routed by matching its
-    // category against a bucket's kind.
+    // category against a bucket's kind. Bundle siblings are folded in after the canonical 6, so a
+    // sibling can never steal a bucket one of the character's own picks already claimed.
     std::array<std::uint32_t, 256> sources{};
     std::array<bool, pool::kEntryCapacity> forcedActive{};
     chosen_sources(walk, sources, forcedActive);
+    claim_bundle_kinds(walk, forcedActive, output);
     for (std::size_t entryIndex = 0; entryIndex < walk.entryCount; ++entryIndex) {
         if (!active(walk.entries[entryIndex], entryIndex, sources, forcedActive)) {
             continue;
