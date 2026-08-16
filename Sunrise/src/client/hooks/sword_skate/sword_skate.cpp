@@ -22,7 +22,7 @@
 #include <cstdint>
 
 #include "../../../core/ui/runtime/ui_visibility_runtime.h"
-#include "../../sword_skate/sword_skate_settings_store.h"
+#include "../../movement/movement_settings_store.h"
 #include "../teleport/runtime.h"
 
 namespace sunrise::client::hooks::sword_skate {
@@ -70,9 +70,10 @@ bool g_jumpHeld{false};
 
 /** Clears the glide refusal for one physics tick of the local player. */
 void apply(void* component) noexcept {
-    const client::sword_skate::Settings settings = client::sword_skate::get();
+    const client::movement::Settings settings = client::movement::get();
     // An open interface owns the keyboard, so a press meant for it must not reach this either.
-    const bool usable = settings.enabled && settings.jumpKey != client::sword_skate::kNoKey
+    const bool usable = settings.swordSkateEnabled
+                        && settings.swordSkateJumpKey != client::movement::kNoKey
                         && !core::ui::runtime::snapshot().visible;
     if (!usable) {
         // Cleared rather than left as it was, or the first press after the feature comes back is
@@ -87,7 +88,8 @@ void apply(void* component) noexcept {
     if (component == nullptr || !teleport::owns_local_player(component)) {
         return;
     }
-    const bool held = (GetAsyncKeyState(static_cast<int>(settings.jumpKey)) & kKeyHeldBit) != 0;
+    const bool held =
+        (GetAsyncKeyState(static_cast<int>(settings.swordSkateJumpKey)) & kKeyHeldBit) != 0;
     const bool wasHeld = g_jumpHeld;
     g_jumpHeld = held;
     // Only the press matters. Clearing the flag for as long as the key is down would keep it clear
