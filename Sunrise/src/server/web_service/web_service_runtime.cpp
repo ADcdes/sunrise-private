@@ -40,6 +40,14 @@ constexpr std::uint16_t kItemStateOpcode = 406;
 constexpr std::uint16_t kItemDismantleOpcode = 402;
 /** Web Service opcode used by Collections to create one item instance. */
 constexpr std::uint16_t kItemAcquisitionOpcode = 1820;
+/** The mutation variant's first alternative is the empty one, so index zero prepared nothing. */
+constexpr std::size_t kNoMutation = 0;
+/**
+ * Logical status of a refused action. The descriptor biases logical zero to the wire success the
+ * Client expects, so any other logical value reports a refusal. Its five bits hold no error
+ * taxonomy, so one code covers every reason and the log line names the actual one.
+ */
+constexpr std::int32_t kRefusedStatus = 1;
 
 /**
  * Logs which Web Service opcode arrived and a bounded payload trace. One svc-10 frame looks like
@@ -125,11 +133,12 @@ bool consume(std::span<const std::byte> request,
 }
 
 /**
- * Parses one request, encodes its response, and publishes checked side effects last.
+ * Parses one request, prepares any action it names, and encodes the reply that reports it.
  * @param request Whole decrypted svc-10 body.
  * @param response Svc-11 response-body storage owned by the caller.
  * @param written Gets the encoded response-body size, or zero when the header does not parse.
- * @param outcome Gets a valid family selector only after the response is encoded.
+ * @param outcome Gets the prepared action for the caller to publish, and is left empty when
+ * the action was refused or the reply could not be encoded.
  * @return False only when the envelope header does not parse.
  */
 bool consume(std::span<const std::byte> request,
@@ -197,20 +206,13 @@ bool consume(std::span<const std::byte> request,
         message.opcode == middleware::web_service::messages::opcode206::kOpcode
         && middleware::web_service::messages::opcode206::parse_request(message, subscription);
 
-    middleware::web_service::ResponseShape shape{};
-    resolve_response_shape(message.opcode, shape);
-    if (!middleware::web_service::encode_response(
-            message, shape, middleware::web_service::StatusResponse{}, response, written)) {
-        return encode_echo(message, response, written);
-    }
-    if (subscribes) {
-        // Publish the subscription only after its correlated response is complete.
-        outcome.hasSubscription = true;
-        outcome.subscription = subscription;
-        return true;
-    }
+    // The action runs before its reply is encoded, because the reply reports whether it worked.
+    // Each action fills the outcome only once it has prepared its whole transition, so an outcome
+    // still empty after one ran is that action refusing the request. Nothing is published here:
+    // both the prepared mutation and the subscription are handed back for the caller to publish
+    // once the whole response is framed.
+    bool dispatched = true;
     if (message.opcode == middleware::web_service::messages::opcode504::kOpcode) {
-        // The selection is State, not a response field, so it publishes after the reply encodes.
         select_character(message, outcome);
     } else if (message.opcode == kItemDismantleOpcode) {
         dismantle_item(message, outcome);
@@ -226,6 +228,27 @@ bool consume(std::span<const std::byte> request,
         mutate_item_state(message, outcome);
     } else if (message.opcode == kItemAcquisitionOpcode) {
         acquire_item(message, outcome);
+    } else {
+        dispatched = false;
+    }
+    const bool prepared =
+        outcome.hasSelectedCharacter || outcome.mutation.index() != kNoMutation;
+
+    middleware::web_service::ResponseShape shape{};
+    resolve_response_shape(message.opcode, shape);
+    middleware::web_service::StatusResponse status{};
+    if (dispatched && !prepared) {
+        status.code = kRefusedStatus;
+    }
+    if (!middleware::web_service::encode_response(message, shape, status, response, written)) {
+        // The echo carries no status, so nothing may be published against it.
+        outcome = {};
+        return encode_echo(message, response, written);
+    }
+    if (subscribes) {
+        // Publish the subscription only after its correlated response is complete.
+        outcome.hasSubscription = true;
+        outcome.subscription = subscription;
     }
     return true;
 }

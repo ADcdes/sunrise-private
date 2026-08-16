@@ -82,7 +82,8 @@ void report_socket_plug_response(const middleware::web_service::Message& message
  * @param request Whole decrypted svc-10 body.
  * @param response Svc-11 response-body storage owned by the caller.
  * @param written Gets the encoded response-body size, or zero when the header does not parse.
- * @param outcome Gets a valid family selector only after the response is encoded.
+ * @param outcome Gets the prepared action for the caller to publish, and is left empty when
+ * the action was refused or the reply could not be encoded.
  * @return False only when the envelope header does not parse.
  */
 [[nodiscard]] bool consume(std::span<const std::byte> request,
