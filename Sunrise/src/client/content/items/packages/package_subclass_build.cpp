@@ -58,6 +58,18 @@ constexpr std::size_t kSubclassSlot =
     return false;
 }
 
+/** @param rows Rows built so far. @return True when this list already has a resolved row. */
+[[nodiscard]] bool
+held(std::span<const state::build_data::socket_entry_buckets::Definition> rows,
+     std::uint16_t socketEntryListIndex) noexcept {
+    for (const auto& existing : rows) {
+        if (existing.socketEntryListIndex == socketEntryListIndex) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /** @param character Authored character. @return Its 5 selected socket entries. */
 [[nodiscard]] domain::Selection selection_of(const state::CharacterState& character) noexcept {
     return {character.movementAbilityEntry,
@@ -77,8 +89,12 @@ bool build_character_abilities(const reader::Source& source,
                                std::vector<std::byte>& definition,
                                std::vector<std::byte>& blob,
                                std::span<state::build_data::abilities::Definition> output,
-                               std::size_t& count) noexcept {
+                               std::size_t& count,
+                               std::span<state::build_data::socket_entry_buckets::Definition>
+                                   entryBucketOutput,
+                               std::size_t& entryBucketCount) noexcept {
     count = 0;
+    entryBucketCount = 0;
     std::uint32_t tableTag = 0;
     tables::Array rows{};
     if (!tables::slot_tag(root, tables::kSocketEntryListTableSlot, tableTag) || tableTag == 0) {
@@ -128,6 +144,19 @@ bool build_character_abilities(const reader::Source& source,
         if (!reader::read_tag(source, scratch, indexRow.targetTag, definition)) {
             report_ability_failure("definition_read", character, socketEntryListIndex, indexRow.targetTag);
             return;
+        }
+        // A bundled group can freely mix which ability slot each of its members fills (an
+        // Attunement's melee and super swap can sit in either position), so this is resolved once
+        // per list here, independent of any selection, rather than assumed from table position.
+        if (entryBucketCount < entryBucketOutput.size()
+            && !held(entryBucketOutput.first(entryBucketCount), socketEntryListIndex)) {
+            state::build_data::socket_entry_buckets::Definition entryBuckets{};
+            entryBuckets.socketEntryListIndex = socketEntryListIndex;
+            if (resolve_entry_buckets(
+                    source, scratch, std::span<const std::byte>{definition}, blob,
+                    entryBuckets.buckets)) {
+                entryBucketOutput[entryBucketCount++] = entryBuckets;
+            }
         }
         if (!build_ability_buckets(
                 source, scratch, std::span<const std::byte>{definition}, blob, selection, row)) {

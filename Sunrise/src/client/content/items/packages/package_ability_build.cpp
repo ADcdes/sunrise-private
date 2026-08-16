@@ -108,21 +108,48 @@ selector_destination(const Walk& walk, std::uint8_t entryIndex, std::uint8_t& bu
 }
 
 /**
- * Chooses the active plug source of every entry group.
+ * Chooses the active plug source of every entry group, and any bundled siblings a pick carries.
  * An entry group holds alternatives, and the summary selection names which one the character has.
+ * A pick can also bundle several consecutive same-group entries that publish together (an
+ * Attunement's melee, plus the passive nodes it carries with it); those siblings normally carry
+ * their own distinct plug source, so they are marked forced-active directly rather than relying on
+ * a plug-source match.
  * @param walk Subclass walk state.
  * @param sources Receives one active plug source per group, keyed by group.
+ * @param forcedActive Receives which entries are active regardless of plug source.
  */
-void chosen_sources(const Walk& walk, std::array<std::uint32_t, 256>& sources) noexcept {
+void chosen_sources(const Walk& walk,
+                    std::array<std::uint32_t, 256>& sources,
+                    std::array<bool, pool::kEntryCapacity>& forcedActive) noexcept {
     sources.fill(pool::kNoPlugSource);
+    forcedActive.fill(false);
+    // A group of 2 or 3 entries (grenade, movement, class ability) is an ordinary set of mutually
+    // exclusive alternatives: exactly one contributes its hashes. An Attunement's group is far
+    // wider (it packs several 4-node options into one group id), so a population past the widest
+    // single bundle is the signal that this group's members activate in same-sized runs rather
+    // than as lone alternatives.
+    std::array<std::uint16_t, 256> groupPopulation{};
+    for (std::size_t index = 0; index < walk.entryCount; ++index) {
+        ++groupPopulation[walk.entries[index].group];
+    }
     for (const std::uint8_t entryIndex : walk.selected) {
         if (entryIndex >= walk.entryCount) {
             continue;
         }
         const pool::Entry& entry = walk.entries[entryIndex];
-        if (entry.plugSource != pool::kNoPlugSource
-            && sources[entry.group] == pool::kNoPlugSource) {
-            sources[entry.group] = entry.plugSource;
+        if (entry.plugSource == pool::kNoPlugSource || sources[entry.group] != pool::kNoPlugSource) {
+            continue;
+        }
+        sources[entry.group] = entry.plugSource;
+        if (groupPopulation[entry.group] <= state::kMaxAttunementBundleSize) {
+            continue;
+        }
+        forcedActive[entryIndex] = true;
+        for (std::size_t offset = 1;
+             offset < state::kMaxAttunementBundleSize && entryIndex + offset < walk.entryCount
+             && walk.entries[entryIndex + offset].group == entry.group;
+             ++offset) {
+            forcedActive[entryIndex + offset] = true;
         }
     }
 }
@@ -130,11 +157,18 @@ void chosen_sources(const Walk& walk, std::array<std::uint32_t, 256>& sources) n
 /**
  * Decides whether one entry contributes its pool's hashes.
  * @param entry Candidate entry.
+ * @param entryIndex Its index, checked against the forced-active bundle siblings.
  * @param sources Active plug source per group.
- * @return True when the entry is the group's active alternative, or is the super.
+ * @param forcedActive Entries active regardless of plug source, from a bundled pick.
+ * @return True when the entry is the group's active alternative, a bundled sibling, or the super.
  */
 [[nodiscard]] bool active(const pool::Entry& entry,
-                          const std::array<std::uint32_t, 256>& sources) noexcept {
+                          std::size_t entryIndex,
+                          const std::array<std::uint32_t, 256>& sources,
+                          const std::array<bool, pool::kEntryCapacity>& forcedActive) noexcept {
+    if (entryIndex < forcedActive.size() && forcedActive[entryIndex]) {
+        return true;
+    }
     if (entry.plugSource == pool::kNoPlugSource) {
         return entry.kind == kSuperKind;
     }
@@ -216,15 +250,55 @@ bool build_ability_buckets(const reader::Source& source,
     // Kinds must be complete before any hash is filed, because a hash is routed by matching its
     // category against a bucket's kind.
     std::array<std::uint32_t, 256> sources{};
-    chosen_sources(walk, sources);
+    std::array<bool, pool::kEntryCapacity> forcedActive{};
+    chosen_sources(walk, sources, forcedActive);
     for (std::size_t entryIndex = 0; entryIndex < walk.entryCount; ++entryIndex) {
-        if (!active(walk.entries[entryIndex], sources)) {
+        if (!active(walk.entries[entryIndex], entryIndex, sources, forcedActive)) {
             continue;
         }
         std::array<pool::PoolRecord, pool::kPoolRecordCapacity> records{};
         const std::size_t count = records_of(walk, walk.entries[entryIndex], 0, records);
         for (std::size_t entry = 0; entry < count; ++entry) {
             file_hash(records[entry], output);
+        }
+    }
+    return true;
+}
+
+/**
+ * Resolves which of the 12 semantic ability buckets every entry in one socket-entry list reaches.
+ * A pick's table position does not say which ability slot it fills; a bundled group (an
+ * Attunement, for example) can freely mix its members across slots. Only the selector chain each
+ * entry's own pool declares says where it lands, so this walks every entry once and records it,
+ * independent of any character's current selection.
+ * @param source Package source.
+ * @param scratch Reader scratch.
+ * @param listDefinition One socket-entry list's definition bytes.
+ * @param blob Scratch storage reused for every pool blob.
+ * @param output Receives one resolved bucket per entry, or the no-destination sentinel.
+ * @return True when the list's entries read.
+ */
+bool resolve_entry_buckets(
+    const reader::Source& source,
+    reader::Scratch& scratch,
+    std::span<const std::byte> listDefinition,
+    std::vector<std::byte>& blob,
+    std::array<std::uint8_t, state::build_data::socket_entry_lists::kEntryCapacity>&
+        output) noexcept {
+    output.fill(state::build_data::socket_entry_buckets::kNoDestinationBucket);
+    Walk walk{};
+    walk.source = &source;
+    walk.scratch = &scratch;
+    walk.blob = &blob;
+    walk.entryCount = pool::read_entries(listDefinition, walk.entries);
+    if (walk.entryCount == 0) {
+        return false;
+    }
+    for (std::size_t entryIndex = 0; entryIndex < walk.entryCount && entryIndex < output.size();
+         ++entryIndex) {
+        std::uint8_t bucket = 0;
+        if (selector_destination(walk, static_cast<std::uint8_t>(entryIndex), bucket)) {
+            output[entryIndex] = bucket;
         }
     }
     return true;

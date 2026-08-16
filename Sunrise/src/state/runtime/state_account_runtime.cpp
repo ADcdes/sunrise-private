@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -1408,6 +1409,146 @@ character_item_at(CharacterState& character, const CharacterItemLocation& locati
     mutation.beforeFlags = target->flags;
     mutation.afterFlags = flags;
     mutation.targetEquipped = location.equipped;
+    mutation.prepared = true;
+    return true;
+}
+
+/**
+ * Prepares a subclass ability-entry transition without publishing account State.
+ * The requested entry must currently compete (share a socket-entry group) with exactly one of the
+ * character's 5 authored ability picks; that pick is the one the transition updates. This mirrors
+ * how `resolve_socket_states` decides which entries a selection makes active, so the entry a
+ * request names always maps back to the same field that selection would have set.
+ */
+[[nodiscard]] bool stage_subclass_selection(const AccountState& snapshot,
+                                            std::size_t characterIndex,
+                                            std::uint64_t subclassInstanceSoid,
+                                            std::uint8_t requestedEntry,
+                                            PendingSubclassSelection& mutation) noexcept {
+    mutation = {};
+    if (!account::valid(snapshot) || characterIndex >= snapshot.characterCount
+        || subclassInstanceSoid == 0 || requestedEntry >= socket_lists::kEntryCapacity) {
+        return false;
+    }
+    const CharacterState& before = snapshot.characters[characterIndex];
+    if (!before.selected || before.soid == 0) {
+        return false;
+    }
+    constexpr std::size_t kSubclassSlot =
+        static_cast<std::size_t>(authored_inventory::EquipmentSlot::subclass);
+    const auto& subclass = before.equipment.slots[kSubclassSlot];
+    build_data::items::Definition subclassDefinition{};
+    item_details::Definition detail{};
+    socket_lists::EntryTable entries{};
+    if (!subclass.has_value() || subclass->instanceSoid != subclassInstanceSoid
+        || !build_data::find_item_definition_hash(subclass->definitionHash, subclassDefinition)
+        || !build_data::find_configured_item_detail(subclassDefinition.definitionIndex, detail)
+        || !build_data::find_socket_entry_table(detail.socketEntryListIndex, entries)
+        || requestedEntry >= entries.entries.size()) {
+        return false;
+    }
+
+    const socket_lists::Entry& requested = entries.entries[requestedEntry];
+    if (requested.plugSource == socket_lists::kNoPlugSource
+        || requested.group == socket_lists::kNoEntryGroup) {
+        return false;
+    }
+
+    // A clicked entry's table position does not say which ability slot it fills; only its
+    // resolved destination bucket does. A bundled pick (an Attunement, for example) can mix its
+    // members freely across slots, so every member in the clicked entry's bundle is checked, not
+    // just the one clicked.
+    CharacterState after = before;
+    struct Route {
+        std::uint8_t bucket;
+        std::uint8_t* field;
+        std::uint8_t defaultEntry;
+    };
+    const std::array<Route, 5> routes{{
+        {kMovementAbilityBucket, &after.movementAbilityEntry, kDefaultMovementAbilityEntry},
+        {kGrenadeAbilityBucket, &after.grenadeAbilityEntry, kDefaultGrenadeAbilityEntry},
+        {kSuperAbilityBucket, &after.superAbilityEntry, kDefaultSuperAbilityEntry},
+        {kMeleeAbilityBucket, &after.meleeAbilityEntry, kDefaultMeleeAbilityEntry},
+        {class_ability_bucket(after.characterClass), &after.classAbilityEntry,
+         kDefaultClassAbilityEntry},
+    }};
+    const auto bucket_of = [&](std::uint8_t entryIndex) noexcept {
+        std::uint8_t bucket = build_data::socket_entry_buckets::kNoDestinationBucket;
+        (void)build_data::find_socket_entry_bucket(
+            detail.socketEntryListIndex, entryIndex, bucket);
+        return bucket;
+    };
+    const auto route_entry = [&](std::uint8_t entryIndex) noexcept {
+        const std::uint8_t bucket = bucket_of(entryIndex);
+        for (const Route& route : routes) {
+            if (route.bucket == bucket) {
+                *route.field = entryIndex;
+                return;
+            }
+        }
+    };
+    // A click can land on any member of a bundle, not only the routable one: the diamond's other
+    // 3 quadrants are passive nodes with no destination bucket of their own (see the group-3
+    // dump: only one member of each 4-node group resolves to melee, or to super and melee both).
+    // The requested entry is only ever the whole bundle's anchor when it happens to be its lowest
+    // index, so the bundle's true start is found by scanning backward first, then every member is
+    // routed from there. Members share the anchor's group only while a wide group (a bundle, not
+    // a simple set of alternatives) is in play; see resolve_socket_states for the same threshold.
+    std::size_t groupPopulation = 0;
+    for (std::size_t index = 0; index < entries.entries.size(); ++index) {
+        if (entries.entries[index].group == requested.group) {
+            ++groupPopulation;
+        }
+    }
+    if (groupPopulation <= kMaxAttunementBundleSize) {
+        route_entry(requestedEntry);
+    } else {
+        // A wide group is several same-sized bundles competing for one pick, not several
+        // independent alternatives, so only one bundle's fields stay set at a time. A bundle that
+        // does not touch every field this group can reach (the top and bottom Attunement options
+        // here do not touch super, only the middle one does) must not leave an earlier bundle's
+        // value behind in the field it left alone: super stuck on a prior Attunement's pick while
+        // melee moves to a different one is a combination the game never produces on its own, and
+        // it stops accepting further picks once state reaches it. Every bucket this whole group
+        // can ever reach is reset to its ordinary default first, and only then does the picked
+        // bundle's own members overwrite the ones it actually claims.
+        for (std::size_t index = 0; index < entries.entries.size(); ++index) {
+            if (entries.entries[index].group != requested.group) {
+                continue;
+            }
+            const std::uint8_t bucket = bucket_of(static_cast<std::uint8_t>(index));
+            for (const Route& route : routes) {
+                if (route.bucket == bucket) {
+                    *route.field = route.defaultEntry;
+                }
+            }
+        }
+        std::uint8_t blockStart = requestedEntry;
+        while (blockStart > 0 && requestedEntry - blockStart < kMaxAttunementBundleSize - 1
+               && entries.entries[blockStart - 1].group == requested.group) {
+            --blockStart;
+        }
+        for (std::size_t offset = 0; offset < kMaxAttunementBundleSize
+             && blockStart + offset < entries.entries.size()
+             && entries.entries[blockStart + offset].group == requested.group;
+             ++offset) {
+            route_entry(static_cast<std::uint8_t>(blockStart + offset));
+        }
+    }
+    if (same_character(before, after)) {
+        return false;
+    }
+
+    mutation.beforeCharacter = before;
+    mutation.afterCharacter = after;
+    mutation.accountSoid = snapshot.primarySoid;
+    mutation.characterSoid = before.soid;
+    mutation.subclassInstanceSoid = subclassInstanceSoid;
+    mutation.subclassDefinitionHash = subclassDefinition.definitionHash;
+    mutation.characterIndex = characterIndex;
+    mutation.subclassDefinitionIndex = subclassDefinition.definitionIndex;
+    mutation.socketEntryListIndex = detail.socketEntryListIndex;
+    mutation.requestedEntry = requestedEntry;
     mutation.prepared = true;
     return true;
 }

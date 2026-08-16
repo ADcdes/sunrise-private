@@ -18,6 +18,7 @@
 #include "material_requirements/material_requirement_catalog.h"
 #include "progressions/definition.h"
 #include "scenarios/definition.h"
+#include "socket_entry_buckets/definition.h"
 #include "socket_entry_lists/definition.h"
 #include "spawn_sets/definition.h"
 #include "vendors/definition.h"
@@ -240,6 +241,45 @@ publish_ability_buckets(std::span<const abilities::Definition> definitions) noex
 [[nodiscard]] bool find_ability_buckets(std::uint16_t socketEntryListIndex,
                                         const abilities::Selection& selection,
                                         abilities::Definition& definition) noexcept;
+
+/**
+ * Drops the published ability bucket domain so the next investment refresh slice rebuilds it.
+ * A committed subclass ability-entry change makes the published rows stale for their character,
+ * since they were keyed by the selection in place when the domain was first built.
+ */
+void invalidate_ability_buckets() noexcept;
+
+/**
+ * @return True when at least one socket-entry list's resolved bucket destinations are published.
+ * Unlike the ability buckets above, this is never part of the on-disk content cache: it is a
+ * small derived table, cheap to recompute, so a warm boot that skips re-extraction (because the
+ * ability buckets it gates alongside are already cached) must not leave it permanently empty for
+ * the whole session. package_item_rows.cpp checks this independently of ability_buckets_ready()
+ * so a warm cache still triggers the one extraction pass this table needs.
+ */
+[[nodiscard]] bool socket_entry_buckets_ready() noexcept;
+
+/**
+ * Publishes every socket-entry list's resolved per-entry ability-bucket destinations.
+ * Purely a derived cache of static content (which of the 12 semantic ability buckets each entry's
+ * selector chain reaches), so unlike the ability buckets above it never needs invalidating: a
+ * subclass's entry table does not change after content extraction.
+ * @param definitions Complete rows, one per socket-entry list that carries a super lane.
+ * @return True when the rows pass the checks.
+ */
+[[nodiscard]] bool publish_socket_entry_buckets(
+    std::span<const socket_entry_buckets::Definition> definitions) noexcept;
+
+/**
+ * Finds which of the 12 semantic ability buckets one socket entry resolves to.
+ * @param socketEntryListIndex Native socket-entry-list index of the subclass.
+ * @param entryIndex The entry to look up.
+ * @param bucket Receives the resolved destination, or the no-destination sentinel.
+ * @return True when the list's row is published and the entry index is in range.
+ */
+[[nodiscard]] bool find_socket_entry_bucket(std::uint16_t socketEntryListIndex,
+                                            std::uint8_t entryIndex,
+                                            std::uint8_t& bucket) noexcept;
 
 /** @return True when the installed investment constants are in State. */
 [[nodiscard]] bool investment_constants_ready() noexcept;

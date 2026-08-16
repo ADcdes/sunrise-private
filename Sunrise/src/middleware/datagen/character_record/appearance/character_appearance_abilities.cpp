@@ -28,10 +28,17 @@ bool apply_ability_buckets(const state::CharacterState& character,
         details::Definition detail{};
         buckets::Definition published{};
         if (!state::build_data::find_configured_item_detail(
-                instances.items[index].instance.baseDefinitionIndex, detail)
-            || !state::build_data::find_ability_buckets(
-                detail.socketEntryListIndex, selection_of(character), published)) {
+                instances.items[index].instance.baseDefinitionIndex, detail)) {
             return false;
+        }
+        if (!state::build_data::find_ability_buckets(
+                detail.socketEntryListIndex, selection_of(character), published)) {
+            // The domain has not caught up with this selection yet (a fresh pick invalidates it
+            // until the next investment refresh slice republishes). Publish empty buckets for
+            // this one encode, the same as a character with no subclass equipped, instead of
+            // failing the whole record: a hard failure here aborts the entire Family-0/3 snapshot
+            // and surfaces as a request error even though the underlying selection did commit.
+            return true;
         }
         for (std::size_t bucket = 0; bucket < appearance.abilityBuckets.size(); ++bucket) {
             layout::AbilityBucket& target = appearance.abilityBuckets[bucket];

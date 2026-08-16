@@ -13,32 +13,8 @@ namespace {
 
 namespace build_socket_lists = state::build_data::socket_entry_lists;
 
-/** Bucket the grenade publishes into. Entry order is sprint, class, movement, grenade, super,
- * melee, so the entries themselves are the character's own choices. */
-constexpr std::uint8_t kGrenadeBucket = 0;
-/** Bucket the super publishes into. */
-constexpr std::uint8_t kSuperBucket = 1;
-/** Bucket the melee publishes into. */
-constexpr std::uint8_t kMeleeBucket = 2;
-/** Bucket the movement ability publishes into. */
-constexpr std::uint8_t kMovementBucket = 3;
-/** Bucket the sprint publishes into. Sprint is not selectable, so its entry is fixed. */
-constexpr std::uint8_t kSprintBucket = 4;
 /** Socket entry of the sprint ability. */
 constexpr std::uint8_t kSprintEntry = 1;
-
-/** @param characterClass Authored class. @return The bucket its class ability publishes into. */
-[[nodiscard]] std::uint8_t class_ability_bucket(state::CharacterClass characterClass) noexcept {
-    switch (characterClass) {
-    case state::CharacterClass::hunter:
-        return 9;
-    case state::CharacterClass::warlock:
-        return 11;
-    case state::CharacterClass::titan:
-    default:
-        return 6;
-    }
-}
 
 } // namespace
 
@@ -46,13 +22,13 @@ constexpr std::uint8_t kSprintEntry = 1;
 void subclass_selection(const state::CharacterState& character,
                         SubclassSelection& output) noexcept {
     output = {};
-    output.selected[0] = {character.grenadeAbilityEntry, kGrenadeBucket};
-    output.selected[1] = {character.superAbilityEntry, kSuperBucket};
-    output.selected[2] = {character.meleeAbilityEntry, kMeleeBucket};
-    output.selected[3] = {character.movementAbilityEntry, kMovementBucket};
-    output.selected[4] = {kSprintEntry, kSprintBucket};
+    output.selected[0] = {character.grenadeAbilityEntry, state::kGrenadeAbilityBucket};
+    output.selected[1] = {character.superAbilityEntry, state::kSuperAbilityBucket};
+    output.selected[2] = {character.meleeAbilityEntry, state::kMeleeAbilityBucket};
+    output.selected[3] = {character.movementAbilityEntry, state::kMovementAbilityBucket};
+    output.selected[4] = {kSprintEntry, state::kSprintAbilityBucket};
     output.selected[5] = {character.classAbilityEntry,
-                          class_ability_bucket(character.characterClass)};
+                          state::class_ability_bucket(character.characterClass)};
 }
 
 /** Resolves one item's socket-entry states and selector lanes. */
@@ -66,7 +42,9 @@ void resolve_socket_states(
     for (std::size_t index = 0; index < definition.entryCount; ++index) {
         const std::uint64_t bit = std::uint64_t{1} << index;
         if ((definition.readyMask & bit) != 0) {
-            output[index] = instance::SocketEntryState::ready;
+            output[index] = (character.acquiredSubclassAbilityMask & bit) != 0
+                                ? instance::SocketEntryState::acquired
+                                : instance::SocketEntryState::ready;
         }
     }
     // Only a subclass keeps an entry table, so this lookup is what identifies one.
@@ -77,10 +55,23 @@ void resolve_socket_states(
     SubclassSelection selection{};
     subclass_selection(character, selection);
 
+    // A group of 2 or 3 entries (grenade, movement, class ability) is an ordinary set of mutually
+    // exclusive alternatives: exactly one is meant to light up. An Attunement's group is far
+    // wider (it packs several 4-node options into one group id), so a population past the widest
+    // single bundle is the signal that this group's members activate in same-sized runs rather
+    // than as lone alternatives.
+    std::array<std::uint16_t, build_socket_lists::kEntryCapacity> groupPopulation{};
+    for (std::size_t index = 0; index < definition.entryCount; ++index) {
+        const std::uint8_t group = entries.entries[index].group;
+        if (group < groupPopulation.size()) {
+            ++groupPopulation[group];
+        }
+    }
     // Each selected entry claims its group. Every entry sharing that group and plug source is
     // active too, which is why a run of duplicate lanes flips together.
     std::array<std::uint32_t, build_socket_lists::kEntryCapacity> chosen{};
     std::array<bool, build_socket_lists::kEntryCapacity> claimed{};
+    std::array<bool, build_socket_lists::kEntryCapacity> forcedActive{};
     for (const SelectedEntry& selected : selection.selected) {
         if (selected.entry >= definition.entryCount || selected.bucket >= selectors.size()) {
             continue;
@@ -93,6 +84,20 @@ void resolve_socket_states(
         }
         claimed[entry.group] = true;
         chosen[entry.group] = entry.plugSource;
+        if (groupPopulation[entry.group] <= state::kMaxAttunementBundleSize) {
+            continue;
+        }
+        // A pick can bundle several consecutive entries under the same group, all publishing
+        // together (an Attunement's melee, plus the passive nodes it carries with it). Siblings
+        // normally carry their own distinct plug source, so force the whole contiguous run active
+        // rather than relying on the plug-source match below to find them.
+        forcedActive[selected.entry] = true;
+        for (std::size_t offset = 1;
+             offset < state::kMaxAttunementBundleSize && selected.entry + offset < definition.entryCount
+             && entries.entries[selected.entry + offset].group == entry.group;
+             ++offset) {
+            forcedActive[selected.entry + offset] = true;
+        }
     }
     for (std::size_t index = 0; index < definition.entryCount; ++index) {
         const build_socket_lists::Entry& entry = entries.entries[index];
@@ -101,7 +106,7 @@ void resolve_socket_states(
                                   && chosen[entry.group] == entry.plugSource;
         const bool superLane = entry.plugSource == build_socket_lists::kNoPlugSource
                                && entry.kind == build_socket_lists::kSuperEntryKind;
-        if (matchesGroup || superLane) {
+        if (matchesGroup || superLane || forcedActive[index]) {
             output[index] = instance::SocketEntryState::active;
         }
     }

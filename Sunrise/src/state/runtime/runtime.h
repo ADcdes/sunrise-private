@@ -24,6 +24,41 @@ namespace sunrise::state {
  */
 [[nodiscard]] bool ensure_character_subclasses() noexcept;
 
+/** Prepared subclass socket-entry selection for the equipped selected-character subclass. */
+struct PendingSubclassSelection {
+    /** Exact prepare-time character view used as the commit staleness guard. */
+    CharacterState beforeCharacter{};
+    /** Canonical after-image. Only one authored ability-entry field differs. */
+    CharacterState afterCharacter{};
+    std::uint64_t accountSoid{};
+    std::uint64_t characterSoid{};
+    std::uint64_t subclassInstanceSoid{};
+    std::uint32_t subclassDefinitionHash{};
+    std::size_t characterIndex{};
+    std::uint16_t subclassDefinitionIndex{};
+    std::uint16_t socketEntryListIndex{};
+    /** Exact entry named by opcode 801. */
+    std::uint8_t requestedEntry{};
+    bool prepared{};
+};
+
+/**
+ * Prepares one opcode-801 selection against the selected character's exact equipped subclass.
+ * The installed socket-entry table maps the request to whichever of the character's 5 authored
+ * ability picks currently competes in the same group; no class-specific node indices are
+ * authored in State.
+ */
+[[nodiscard]] bool prepare_subclass_selection(std::uint64_t subclassInstanceSoid,
+                                              std::uint8_t requestedEntry,
+                                              PendingSubclassSelection& mutation) noexcept;
+
+/** Produces the complete uncommitted account after-image for a prepared subclass selection. */
+[[nodiscard]] bool preview_subclass_selection(const PendingSubclassSelection& mutation,
+                                              AccountState& after) noexcept;
+
+/** Commits a prepared subclass selection behind the exact full-character staleness guard. */
+[[nodiscard]] bool commit_subclass_selection(PendingSubclassSelection& mutation) noexcept;
+
 /** Direction of one checked character equipment mutation. */
 enum class EquipmentMutationKind : std::uint8_t {
     none,
