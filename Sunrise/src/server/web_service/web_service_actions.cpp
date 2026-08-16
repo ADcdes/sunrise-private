@@ -6,8 +6,10 @@
 #include <string_view>
 
 #include "../../core/logging/log.h"
-#include "../../middleware/encoding/bit_reader.h"
-#include "../../middleware/encoding/byte_order.h"
+#include "../../middleware/web_service/messages/opcode402.h"
+#include "../../middleware/web_service/messages/opcode403.h"
+#include "../../middleware/web_service/messages/opcode406.h"
+#include "../../middleware/web_service/messages/opcode1820.h"
 #include "../../middleware/web_service/messages/opcode1901.h"
 #include "../../middleware/web_service/messages/opcode504.h"
 #include "../../middleware/web_service/messages/opcode903.h"
@@ -19,27 +21,7 @@ namespace sunrise::server::web_service {
 
 namespace {
 
-constexpr std::size_t kEquipmentActionPayloadSize = middleware::encoding::kU64Size + 1U;
-constexpr std::size_t kItemStatePayloadSize = 15;
-constexpr std::uint8_t kItemStateDefinitionIndexWidth = 15;
-constexpr std::uint8_t kItemStateValueWidth = 32;
-constexpr std::uint8_t kItemStatePaddingWidth = 7;
-constexpr std::uint64_t kItemStateValueBias = 0x80000000ULL;
-constexpr std::size_t kItemDismantlePayloadSize = 16;
-constexpr std::uint8_t kItemDismantleInstanceWidth = 64;
-constexpr std::uint8_t kItemDismantleDefinitionIndexWidth = 15;
-constexpr std::uint8_t kItemDismantleQuantityWidth = 32;
-constexpr std::uint32_t kItemDismantleSingleQuantityWire = 0x80000001U;
-constexpr std::uint8_t kItemDismantleRequiredFlagWidth = 1;
-constexpr std::uint8_t kItemDismantleNestedPaddingWidth = 6;
-constexpr std::uint8_t kItemDismantleOuterTrailerWidth = 2;
-constexpr std::uint8_t kItemDismantleFinalPaddingWidth = 6;
-constexpr std::uint64_t kEquipmentSelectorStride = 4;
 constexpr std::uint8_t kEquippedShaderModelSocketKind = 0;
-constexpr std::size_t kItemAcquisitionPayloadSize = 3;
-constexpr std::uint8_t kItemAcquisitionPresenceWidth = 1;
-constexpr std::uint8_t kItemAcquisitionCollectibleIndexWidth = 15;
-constexpr std::uint8_t kItemAcquisitionPaddingWidth = 8;
 constexpr std::uint32_t kUnavailableDefinitionIndex = (std::numeric_limits<std::uint16_t>::max)();
 } // namespace
 
@@ -246,18 +228,13 @@ void select_character(const middleware::web_service::Message& message, Outcome& 
     }
 }
 
-/** Parses the exact shared opcode-403/404 SOID descriptor. */
+/** Reads the shared opcode-403/404 SOID descriptor through its codec. */
 [[nodiscard]] bool parse_equipment_instance(const middleware::web_service::Message& message,
                                             std::uint64_t& instanceSoid) noexcept {
-    instanceSoid = 0;
-    if (message.payload.size() != kEquipmentActionPayloadSize
-        || message.payload[middleware::encoding::kU64Size] != std::byte{}) {
-        return false;
-    }
-    instanceSoid = middleware::encoding::read_u64_be(
-        std::span<const std::byte, middleware::encoding::kU64Size>{message.payload.data(),
-                                                                   middleware::encoding::kU64Size});
-    return instanceSoid != 0;
+    middleware::web_service::messages::opcode403::Request request{};
+    const bool parsed = middleware::web_service::messages::opcode403::parse_request(message, request);
+    instanceSoid = request.instanceSoid;
+    return parsed;
 }
 
 /** Prepares one opcode-403/404 equipment mutation without publishing State early. */
@@ -408,8 +385,7 @@ void mutate_equipped_socket_plug(const middleware::web_service::Message& message
         || request.canonicalSocketKind != request.socketIndex
         || request.modelSocketKind != kEquippedShaderModelSocketKind || request.auxiliary != 0
         || request.socketIndex >= state::account::inventory::kPlugCapacity
-        || request.equipmentSelector == 0
-        || request.equipmentSelector % kEquipmentSelectorStride != 0) {
+        || request.instanceIdentityToken == 0) {
         std::array<char, 256> line{};
         const int count = std::snprintf(
             line.data(),
@@ -433,10 +409,10 @@ void mutate_equipped_socket_plug(const middleware::web_service::Message& message
         return;
     }
 
-    const std::uint64_t identityToken = request.equipmentSelector / kEquipmentSelectorStride;
+    const std::uint64_t identityToken = request.instanceIdentityToken;
     state::PendingSocketPlug mutation{};
     if (!state::prepare_character_selector_socket_plug(
-            request.equipmentSelector,
+            request.instanceIdentityToken,
             static_cast<std::uint8_t>(request.socketIndex),
             request.plugDefinitionIndex,
             mutation)) {
@@ -494,34 +470,19 @@ void mutate_equipped_socket_plug(const middleware::web_service::Message& message
 
 /** Parses and prepares one complete accumulated item-state value from opcode 406. */
 void mutate_item_state(const middleware::web_service::Message& message, Outcome& outcome) noexcept {
-    middleware::encoding::bits::Reader reader(message.payload);
-    std::uint64_t instancePresent = 0;
-    std::uint64_t instanceSoid = 0;
-    std::uint64_t definitionPresent = 0;
-    std::uint64_t definitionIndex = 0;
-    std::uint64_t encodedFlags = 0;
-    std::uint64_t padding = 0;
-    if (message.payload.size() != kItemStatePayloadSize || !reader.read(1, instancePresent)
-        || !reader.read(64, instanceSoid) || !reader.read(1, definitionPresent)
-        || !reader.read(kItemStateDefinitionIndexWidth, definitionIndex)
-        || !reader.read(kItemStateValueWidth, encodedFlags)
-        || !reader.read(kItemStatePaddingWidth, padding) || reader.remaining_bits() != 0
-        || instancePresent == 0 || instanceSoid == 0 || definitionPresent == 0
-        || definitionIndex > (std::numeric_limits<std::uint16_t>::max)()
-        || encodedFlags < kItemStateValueBias || padding != 0
-        || encodedFlags - kItemStateValueBias > 0x3U) {
+    middleware::web_service::messages::opcode406::Request request{};
+    if (!middleware::web_service::messages::opcode406::parse_request(message, request)) {
         std::array<char, 224> line{};
         const int count = std::snprintf(
             line.data(),
             line.size(),
             "ev=ws406 stage=parse result=fail transaction=%u payload_bytes=%zu instance=0x%llX "
-            "definition=%llu flags_wire=0x%llX padding=0x%llX",
+            "definition=%u flags=0x%X",
             static_cast<unsigned>(message.transactionId),
             message.payload.size(),
-            static_cast<unsigned long long>(instanceSoid),
-            static_cast<unsigned long long>(definitionIndex),
-            static_cast<unsigned long long>(encodedFlags),
-            static_cast<unsigned long long>(padding));
+            static_cast<unsigned long long>(request.instanceSoid),
+            static_cast<unsigned>(request.definitionIndex),
+            request.flags);
         if (count > 0) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
@@ -530,10 +491,10 @@ void mutate_item_state(const middleware::web_service::Message& message, Outcome&
         return;
     }
 
-    const std::uint32_t flags = static_cast<std::uint32_t>(encodedFlags - kItemStateValueBias);
+    const std::uint64_t instanceSoid = request.instanceSoid;
+    const std::uint32_t flags = request.flags;
     state::PendingItemState mutation{};
-    if (!state::prepare_item_state(
-            instanceSoid, static_cast<std::uint16_t>(definitionIndex), flags, mutation)) {
+    if (!state::prepare_item_state(instanceSoid, request.definitionIndex, flags, mutation)) {
         return;
     }
     outcome.mutation = mutation;
@@ -591,53 +552,21 @@ void report_item_dismantle(const middleware::web_service::Message& message,
 
 /** Prepares the exact fixed-width opcode-402 Character-inventory removal request. */
 void dismantle_item(const middleware::web_service::Message& message, Outcome& outcome) noexcept {
-    if (message.payload.size() != kItemDismantlePayloadSize) {
-        report_item_dismantle(
-            message, "fail", "payload_size", 0, kUnavailableDefinitionIndex, 0, 0);
+    middleware::web_service::messages::opcode402::Request request{};
+    if (!middleware::web_service::messages::opcode402::parse_request(message, request)) {
+        report_item_dismantle(message,
+                              "fail",
+                              "payload_bits",
+                              request.instanceSoid,
+                              request.definitionIndex,
+                              0,
+                              0);
         return;
     }
-
-    middleware::encoding::bits::Reader reader(message.payload);
-    std::uint64_t instancePresent = 0;
-    std::uint64_t instanceSoid = 0;
-    std::uint64_t definitionPresent = 0;
-    std::uint64_t encodedDefinitionIndex = 0;
-    std::uint64_t encodedQuantity = 0;
-    std::uint64_t requiredFlag = 0;
-    std::uint64_t nestedPadding = 0;
-    std::uint64_t outerTrailers = 0;
-    std::uint64_t finalPadding = 0;
-    if (!reader.read(1, instancePresent) || !reader.read(kItemDismantleInstanceWidth, instanceSoid)
-        || !reader.read(1, definitionPresent)
-        || !reader.read(kItemDismantleDefinitionIndexWidth, encodedDefinitionIndex)
-        || !reader.read(kItemDismantleQuantityWidth, encodedQuantity)
-        || !reader.read(kItemDismantleRequiredFlagWidth, requiredFlag)
-        || !reader.read(kItemDismantleNestedPaddingWidth, nestedPadding)
-        || !reader.read(kItemDismantleOuterTrailerWidth, outerTrailers)
-        || !reader.read(kItemDismantleFinalPaddingWidth, finalPadding)
-        || reader.remaining_bits() != 0) {
-        report_item_dismantle(
-            message, "fail", "payload_bits", 0, kUnavailableDefinitionIndex, 0, 0);
-        return;
-    }
-    const auto definitionIndex = static_cast<std::uint16_t>(encodedDefinitionIndex);
-    const auto quantityWire = static_cast<std::uint32_t>(encodedQuantity);
-    constexpr std::uint32_t kSingleQuantity = 1;
-    if (instancePresent == 0 || definitionPresent == 0 || instanceSoid == 0) {
-        report_item_dismantle(
-            message, "fail", "required_field", instanceSoid, definitionIndex, 0, 0);
-        return;
-    }
-    if (nestedPadding != 0 || outerTrailers != 0 || finalPadding != 0) {
-        report_item_dismantle(
-            message, "fail", "padding_or_trailer", instanceSoid, definitionIndex, 0, 0);
-        return;
-    }
-    if (quantityWire != kItemDismantleSingleQuantityWire || requiredFlag != 1) {
-        report_item_dismantle(
-            message, "fail", "quantity_or_flag", instanceSoid, definitionIndex, 0, 0);
-        return;
-    }
+    const std::uint64_t instanceSoid = request.instanceSoid;
+    const std::uint16_t definitionIndex = request.definitionIndex;
+    constexpr std::uint32_t kSingleQuantity =
+        middleware::web_service::messages::opcode402::kSingleQuantity;
 
     state::build_data::items::Definition definition{};
     if (!state::build_data::find_item_definition_index(definitionIndex, definition)) {
@@ -710,24 +639,8 @@ void report_item_acquisition(const middleware::web_service::Message& message,
 
 /** Prepares the exact three-byte opcode-1820 Collections item request. */
 void acquire_item(const middleware::web_service::Message& message, Outcome& outcome) noexcept {
-    if (message.payload.size() != kItemAcquisitionPayloadSize) {
-        report_item_acquisition(message,
-                                "fail",
-                                "payload_size",
-                                kUnavailableDefinitionIndex,
-                                kUnavailableDefinitionIndex,
-                                0,
-                                0);
-        return;
-    }
-
-    middleware::encoding::bits::Reader reader(message.payload);
-    std::uint64_t present = 0;
-    std::uint64_t encodedCollectibleIndex = 0;
-    std::uint64_t padding = 0;
-    if (!reader.read(kItemAcquisitionPresenceWidth, present)
-        || !reader.read(kItemAcquisitionCollectibleIndexWidth, encodedCollectibleIndex)
-        || !reader.read(kItemAcquisitionPaddingWidth, padding) || reader.remaining_bits() != 0) {
+    middleware::web_service::messages::opcode1820::Request request{};
+    if (!middleware::web_service::messages::opcode1820::parse_request(message, request)) {
         report_item_acquisition(message,
                                 "fail",
                                 "payload_bits",
@@ -737,23 +650,7 @@ void acquire_item(const middleware::web_service::Message& message, Outcome& outc
                                 0);
         return;
     }
-    const auto collectibleIndex = static_cast<std::uint16_t>(encodedCollectibleIndex);
-    if (present == 0) {
-        report_item_acquisition(message,
-                                "fail",
-                                "collectible_absent",
-                                collectibleIndex,
-                                kUnavailableDefinitionIndex,
-                                0,
-                                0);
-        return;
-    }
-    if (padding != 0) {
-        report_item_acquisition(
-            message, "fail", "padding", collectibleIndex, kUnavailableDefinitionIndex, 0, 0);
-        return;
-    }
-
+    const std::uint16_t collectibleIndex = request.collectibleIndex;
     std::uint16_t itemDefinitionIndex = 0;
     if (!state::build_data::find_collectible_item_definition_index(collectibleIndex,
                                                                    itemDefinitionIndex)) {

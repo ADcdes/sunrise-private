@@ -385,11 +385,11 @@ commit_profile_item_acquisition(PendingProfileItemAcquisition& mutation) noexcep
 /**
  * Prepares one ordinary-socket selection for an exact character-screen item selector.
  *
- * Opcode 1901 carries four times the item instance's low 62-bit identity. The resolved selected-
- * character instance is passed through the same checked transition as an instance-addressed
- * action, so acquired and unequipped items do not depend on a coincidental menu-row ordinal.
+ * The resolved selected-character instance is passed through the same checked transition as an
+ * instance-addressed action, so acquired and unequipped items do not depend on a coincidental
+ * menu-row ordinal.
  *
- * @param itemSelector Encoded character-item identity selector carried by opcode 1901.
+ * @param instanceIdentityToken Item-instance identity decoded from the opcode-1901 selector.
  * @param requestedSocketLane Native socket action lane; the installed compatibility relation
  * resolves the target's exact physical lane.
  * @param plugDefinitionIndex Installed plug-definition row selected by the Client.
@@ -397,7 +397,7 @@ commit_profile_item_acquisition(PendingProfileItemAcquisition& mutation) noexcep
  * @return True when the location has one matching item, the plug resolves to exactly the
  * requested compatible ordinary socket lane, and the socket transition is valid.
  */
-[[nodiscard]] bool prepare_character_selector_socket_plug(std::uint64_t itemSelector,
+[[nodiscard]] bool prepare_character_selector_socket_plug(std::uint64_t instanceIdentityToken,
                                                           std::uint8_t requestedSocketLane,
                                                           std::uint16_t plugDefinitionIndex,
                                                           PendingSocketPlug& mutation) noexcept;

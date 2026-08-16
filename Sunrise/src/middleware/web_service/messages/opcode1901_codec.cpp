@@ -33,8 +33,17 @@ constexpr std::uint64_t kModelSocketKindBias = 1;
 constexpr std::uint64_t kShaderModelSocketKind = 0;
 /** Collection-backed shader action sources carry no auxiliary instance identity. */
 constexpr std::uint64_t kShaderAuxiliary = 0;
+/** The character screen's selector is four times the instance identity it names. */
+constexpr std::uint64_t kSelectorStride = 4;
 
 } // namespace
+
+/** Compares a decoded selector against the part of an instance identity the wire carries. */
+bool identifies_instance(std::uint64_t instanceIdentityToken,
+                         std::uint64_t instanceSoid) noexcept {
+    return instanceIdentityToken != 0
+           && (instanceSoid & kInstanceIdentityMask) == instanceIdentityToken;
+}
 
 /** Parses the complete native equipped shader socket-action descriptor. */
 bool parse_request(const Message& message, Request& request) noexcept {
@@ -70,6 +79,17 @@ bool parse_request(const Message& message, Request& request) noexcept {
         request = {};
         return false;
     }
+
+    // The selector is a wire encoding of an instance identity, so it is decoded here rather than
+    // handed on as a raw number for a later layer to divide.
+    if (request.equipmentSelector == 0 || request.equipmentSelector % kSelectorStride != 0
+        || request.equipmentSelector / kSelectorStride > kInstanceIdentityMask) {
+        const std::uint64_t selector = request.equipmentSelector;
+        request = {};
+        request.equipmentSelector = selector;
+        return false;
+    }
+    request.instanceIdentityToken = request.equipmentSelector / kSelectorStride;
 
     request.plugDefinitionIndex = static_cast<std::uint16_t>(encodedPlugDefinition);
     request.canonicalSocketKind =

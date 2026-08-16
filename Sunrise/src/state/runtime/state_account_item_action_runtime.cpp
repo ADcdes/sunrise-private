@@ -6,6 +6,7 @@
 #include <limits>
 
 #include "../../middleware/datagen/family4/loadout/loadout_resolver.h"
+#include "../../middleware/web_service/messages/opcode1901.h"
 #include "../build_data/runtime.h"
 #include "runtime.h"
 #include "state_account_transaction_helpers.h"
@@ -17,6 +18,7 @@ using namespace runtime::detail;
 namespace authored_inventory = account::inventory;
 namespace item_details = build_data::items::details;
 namespace family4_loadout = middleware::datagen::family4::loadout;
+namespace opcode1901 = middleware::web_service::messages::opcode1901;
 
 /** Prepares one checked ordinary-socket selection without publishing account State. */
 bool prepare_socket_plug(std::uint64_t targetInstanceSoid,
@@ -71,7 +73,7 @@ bool prepare_socket_plug(std::uint64_t targetInstanceSoid,
 }
 
 /** Prepares a socket transition for the exact instance identity carried by opcode 1901. */
-bool prepare_character_selector_socket_plug(std::uint64_t itemSelector,
+bool prepare_character_selector_socket_plug(std::uint64_t instanceIdentityToken,
                                             std::uint8_t requestedSocketLane,
                                             std::uint16_t plugDefinitionIndex,
                                             PendingSocketPlug& mutation) noexcept {
@@ -87,11 +89,7 @@ bool prepare_character_selector_socket_plug(std::uint64_t itemSelector,
         }
     }
 
-    constexpr std::uint64_t kSelectorStride = 4;
-    constexpr std::uint64_t kInstanceIdentityMask = 0x3FFFFFFFFFFFFFFFULL;
-    if (characterIndex >= snapshot.characterCount || itemSelector == 0
-        || itemSelector % kSelectorStride != 0
-        || itemSelector / kSelectorStride > kInstanceIdentityMask
+    if (characterIndex >= snapshot.characterCount || instanceIdentityToken == 0
         || requestedSocketLane >= authored_inventory::kPlugCapacity) {
         report_socket_plug("prepare_location",
                            "fail",
@@ -104,7 +102,7 @@ bool prepare_character_selector_socket_plug(std::uint64_t itemSelector,
                            0,
                            0,
                            false,
-                           static_cast<std::size_t>(itemSelector / kSelectorStride));
+                           static_cast<std::size_t>(instanceIdentityToken));
         return false;
     }
 
@@ -112,11 +110,10 @@ bool prepare_character_selector_socket_plug(std::uint64_t itemSelector,
     if (!family4_loadout::resolve(snapshot, characterIndex, resolvedLoadout)) {
         return false;
     }
-    const std::uint64_t identityToken = itemSelector / kSelectorStride;
     const family4_loadout::ResolvedItem* resolvedTarget = nullptr;
     for (std::size_t index = 0; index < resolvedLoadout.itemCount; ++index) {
         const family4_loadout::ResolvedItem& item = resolvedLoadout.items[index];
-        if ((item.instance.instanceSoid & kInstanceIdentityMask) != identityToken) {
+        if (!opcode1901::identifies_instance(instanceIdentityToken, item.instance.instanceSoid)) {
             continue;
         }
         if (resolvedTarget != nullptr) {
@@ -183,7 +180,7 @@ bool prepare_character_selector_socket_plug(std::uint64_t itemSelector,
                            0,
                            0,
                            expectedEquipped,
-                           static_cast<std::size_t>(identityToken));
+                           static_cast<std::size_t>(instanceIdentityToken));
         mutation = {};
         return false;
     }
