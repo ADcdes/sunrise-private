@@ -155,7 +155,7 @@ bool prepare_profile_item_acquisition(Scratch& scratch,
         std::snprintf(line.data(),
                       line.size(),
                       "ev=profile_acquire stage=account_object result=ok family_version=%d "
-                      "account=0x%llX definition=%u item_count=%zu definition_hash=%u quantity=%d "
+                      "account=0x%llX definition=%u item_count=%zu definition_hash=0x%08X quantity=%d "
                       "native_row=%zu mutation_serial=%d change_slot=%u change_next_sequence=%u "
                       "change_kind=%u account_payload_bytes=%zu objects=%zu object_order=%s",
                       acquisition.after.family4Version,
@@ -399,7 +399,7 @@ bool prepare_item_acquisition(Scratch& scratch,
         line.size(),
         "ev=acquire stage=family4_objects result=ok family_version=%d root=0x%llX "
         "character=0x%llX character_definition=%u instance=0x%llX item_definition=%u "
-        "definition_hash=%u inventory_row=%u equipment_slot=%u next_serial=%u objects=%zu "
+        "definition_hash=0x%08X inventory_row=%u equipment_slot=%u next_serial=%u objects=%zu "
         "order=%s new_item_flag=1 watermark=1 acquired_row_serial=%d "
         "inventory_change_write_slot=%u inventory_change_next_sequence=%u "
         "inventory_change_record=0 inventory_change_sequence=%u "
@@ -606,7 +606,7 @@ bool prepare_item_dismantle(Scratch& scratch,
                       line.size(),
                       "ev=dismantle stage=family4_objects result=ok family_version=%d root=0x%llX "
                       "character=0x%llX character_definition=%u instance=0x%llX item_definition=%u "
-                      "definition_hash=%u inventory_index=%zu inventory_row=%u equipment_slot=%u "
+                      "definition_hash=0x%08X inventory_index=%zu inventory_row=%u equipment_slot=%u "
                       "moved_items=%zu items_after=%zu next_serial=%u rewards=%zu objects=%zu "
                       "order=%s",
                       dismantle.after.family4Version,

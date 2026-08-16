@@ -51,7 +51,7 @@ void report_equipment(std::string_view stage,
         line.size(),
         "ev=equip operation=%.*s stage=%.*s result=%.*s character=0x%llX previous=0x%llX "
         "requested=0x%llX equipment_index=%zu inventory_index=%zu native_slot=%u "
-        "moved_items=%zu previous_hash=%u requested_hash=%u",
+        "moved_items=%zu previous_hash=0x%08X requested_hash=0x%08X",
         static_cast<int>(operation.size()),
         operation.data(),
         static_cast<int>(stage.size()),
@@ -89,7 +89,7 @@ void report_acquisition(std::string_view stage,
     const int count = std::snprintf(
         line.data(),
         line.size(),
-        "ev=acquire stage=%.*s result=%.*s reason=%.*s definition_hash=%u character=0x%llX "
+        "ev=acquire stage=%.*s result=%.*s reason=%.*s definition_hash=0x%08X character=0x%llX "
         "instance=0x%llX inventory_index=%zu inventory_row=%u equipment_slot=%u next_serial=%u",
         static_cast<int>(stage.size()),
         stage.data(),
@@ -128,7 +128,7 @@ void report_profile_acquisition(std::string_view stage,
     const int count =
         std::snprintf(line.data(),
                       line.size(),
-                      "ev=profile_acquire stage=%.*s result=%.*s reason=%.*s definition_hash=%u "
+                      "ev=profile_acquire stage=%.*s result=%.*s reason=%.*s definition_hash=0x%08X "
                       "account=0x%llX instance=0x%llX bucket=%u profile_index=%zu item_count=%zu "
                       "quantity_before=%d "
                       "quantity_after=%d appended=%u",
@@ -580,7 +580,7 @@ void report_dismantle(std::string_view stage,
     const int count =
         std::snprintf(line.data(),
                       line.size(),
-                      "ev=dismantle stage=%.*s result=%.*s reason=%.*s definition_hash=%u "
+                      "ev=dismantle stage=%.*s result=%.*s reason=%.*s definition_hash=0x%08X "
                       "character=0x%llX instance=0x%llX inventory_index=%zu inventory_row=%u "
                       "equipment_slot=%u moved_items=%zu next_serial=%u",
                       static_cast<int>(stage.size()),

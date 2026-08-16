@@ -300,7 +300,7 @@ bool consume(Session& session,
                     line.data(),
                     line.size(),
                     "ev=profile_acquire stage=output_publish result=ok framed_bytes=%zu "
-                    "queuez_published=%u family_version=%d residents=%u definition_hash=%u "
+                    "queuez_published=%u family_version=%d residents=%u definition_hash=0x%08X "
                     "quantity=%d instance=0x%llX action_source=%u appended_row=%u "
                     "appended_resident=%u",
                     framedSize,

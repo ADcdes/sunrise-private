@@ -490,7 +490,7 @@ bool prepare_socket_plug(Scratch& scratch,
         "ev=socket_plug stage=family4_objects result=ok family_version=%d root=0x%llX "
         "character=0x%llX instance=0x%llX item_definition=%u target_definition=%u "
         "target_bucket=%u lane=%u plug_definition=%u plug_bucket=%u equipped=%u "
-        "material_set=%u material_set_hash=%u material_rows=%u account_update=%u objects=%zu "
+        "material_set=%u material_set_hash=0x%08X material_rows=%u account_update=%u objects=%zu "
         "order=%s",
         socketPlug.after.family4Version,
         static_cast<unsigned long long>(socketPlug.after.family4RootSoid),
