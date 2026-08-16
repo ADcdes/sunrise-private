@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "core": {
     "logging": {
       "debugger_sink": true,
@@ -152,19 +152,19 @@
       "profile_items": [
         {
           "definition_hash": "0xBC53E66E",
-          "quantity": 100000
+          "quantity": 250000
         },
         {
           "definition_hash": "0x3CF2E8E2",
-          "quantity": 100000
+          "quantity": 999999
         },
         {
           "definition_hash": "0xA7EE4765",
-          "quantity": 100000
+          "quantity": 999999
         },
         {
           "definition_hash": "0xBB97AFD2",
-          "quantity": 100000
+          "quantity": 999999
         },
         {
           "definition_hash": "0xB19439E5",
@@ -172,11 +172,11 @@
         },
         {
           "definition_hash": "0x28D6AC07",
-          "quantity": 50
+          "quantity": 9999
         },
         {
           "definition_hash": "0xE5B38AD2",
-          "quantity": 50
+          "quantity": 999
         },
         {
           "definition_hash": "0xFDC50EA0",
@@ -188,15 +188,15 @@
         },
         {
           "definition_hash": "0x54CCDFF2",
-          "quantity": 50
+          "quantity": 1000
         },
         {
           "definition_hash": "0xDAAB73B4",
-          "quantity": 50
+          "quantity": 1000
         },
         {
           "definition_hash": "0xCD8DA6F2",
-          "quantity": 50
+          "quantity": 1000
         }
       ],
       "settings": {
