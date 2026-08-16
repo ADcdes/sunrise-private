@@ -120,6 +120,7 @@
     <ClCompile Include="src\core\settings\state\key_bindings_parser.cpp" />
     <ClCompile Include="src\core\settings\state\social_parser.cpp" />
     <ClCompile Include="src\core\runtime\core_runtime.cpp" />
+    <ClCompile Include="src\core\runtime\host_environment.cpp" />
     <ClCompile Include="src\core\ui\modules\ui_module_descriptor.cpp" />
     <ClCompile Include="src\core\ui\modules\registry\ui_module_registry.cpp" />
     <ClCompile Include="src\core\ui\modules\logs\logs_module_runtime.cpp" />
@@ -235,6 +236,7 @@
     <ClCompile Include="src\client\hooks\network\http\http_worker_completion.cpp" />
     <ClCompile Include="src\client\hooks\network\signon\signon_readiness_replacements.cpp" />
     <ClCompile Include="src\client\patterns\game\signon\signon_readiness_signature_bytes.cpp" />
+    <ClCompile Include="src\client\graphics\wine_compat.cpp" />
     <ClCompile Include="src\core\settings\client\external\client_external_settings_parser.cpp" />
     <ClCompile Include="src\client\targets\game\game_retail_log_targets.cpp" />
     <ClCompile Include="src\client\patterns\game\retail_log\retail_log_signature_bytes.cpp" />
@@ -682,6 +684,7 @@
     <ClInclude Include="src\core\settings\server\definition.h" />
     <ClInclude Include="src\core\settings\steam\definition.h" />
     <ClInclude Include="src\core\runtime\core_runtime.h" />
+    <ClInclude Include="src\core\runtime\host_environment.h" />
     <ClInclude Include="src\core\ui\imgui_user_config.h" />
     <ClInclude Include="src\core\ui\modules\ui_module_descriptor.h" />
     <ClInclude Include="src\core\ui\modules\registry\ui_module_registry.h" />
@@ -1056,6 +1059,7 @@
     <ClInclude Include="src\client\patterns\game\config_getter\config_getter_signature_bytes.h" />
     <ClInclude Include="src\client\patterns\game\packages\package_key_signature_bytes.h" />
     <ClInclude Include="src\client\patterns\game\signon\signon_readiness_signature_bytes.h" />
+    <ClInclude Include="src\client\graphics\wine_compat.h" />
     <ClInclude Include="src\middleware\content\packages\tables\spawn_reader.h" />
     <ClInclude Include="src\middleware\content\packages\tables\component_container_reader.h" />
     <ClInclude Include="src\client\patterns\image_scan.h" />
