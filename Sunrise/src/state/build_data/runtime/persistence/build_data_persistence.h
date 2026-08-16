@@ -18,6 +18,7 @@
 #include "../../scenarios/definition.h"
 #include "../../socket_entry_lists/definition.h"
 #include "../../spawn_sets/definition.h"
+#include "../../vendors/definition.h"
 
 namespace sunrise::state::build_data::runtime::persistence {
 
@@ -40,6 +41,10 @@ struct Context {
     std::array<spawn_sets::Stem, spawn_sets::kStemCapacity> spawnStemScratch{};
     std::array<spawn_sets::NameHash, spawn_sets::kNameHashCapacity> spawnNameHashScratch{};
     std::array<hash_names::Name, hash_names::kNameCapacity> hashNameScratch{};
+    std::array<vendors::IndexEntry, vendors::kIndexCapacity> vendorIndexScratch{};
+    std::array<vendors::Definition, vendors::kDefinitionCapacity> vendorDefinitionScratch{};
+    std::array<vendors::SaleRow, vendors::kSaleRowCapacity> vendorSaleRowScratch{};
+    std::array<vendors::InstalledRow, vendors::kInstalledRowCapacity> vendorInstalledRowScratch{};
     cache::records::InvestmentConstants constantsScratch{};
     core::path::Buffer cacheDirectory;
     core::path::Buffer cachePath;

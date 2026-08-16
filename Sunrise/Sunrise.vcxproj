@@ -37,6 +37,9 @@
     <IntDir>$(ProjectDir)..\build\obj\$(Platform)\$(Configuration)\</IntDir>
     <ExternalIncludePath>$(ExternalIncludePath);$(ProjectDir)vendor\detours;$(ProjectDir)vendor\imgui;$(ProjectDir)vendor\imgui\backends</ExternalIncludePath>
     <VcpkgApplocalDeps>false</VcpkgApplocalDeps>
+    <!-- clang rejects the UCRT offsetof macro in a constant expression, so point it at the
+         builtin. MSVC refuses the same define as a reserved name, so it stays on this pass. -->
+    <ClangTidyPrependExtraArgs>-D_CRT_USE_BUILTIN_OFFSETOF $(ClangTidyPrependExtraArgs)</ClangTidyPrependExtraArgs>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -346,6 +349,7 @@
     <ClCompile Include="src\state\activity\destination\activity_destination_validation.cpp" />
     <ClCompile Include="src\state\activity\transactions\activity_session_prepare.cpp" />
     <ClCompile Include="src\state\activity\transactions\activity_session_commit.cpp" />
+    <ClCompile Include="src\state\activity\transactions\activity_session_release.cpp" />
     <ClCompile Include="src\state\activity\entity_slots\transactions\activity_entity_slot_prepare.cpp" />
     <ClCompile Include="src\state\activity\entity_slots\transactions\activity_entity_slot_commit.cpp" />
     <ClCompile Include="src\state\activity\bubble_authority\transactions\activity_bubble_authority_grant.cpp" />
@@ -382,6 +386,10 @@
     <ClCompile Include="src\state\build_data\cache\records\cache_record_codec.cpp" />
     <ClCompile Include="src\state\build_data\cache\records\cache_scenario_records.cpp" />
     <ClCompile Include="src\state\build_data\cache\records\cache_spawn_set_records.cpp" />
+    <ClCompile Include="src\state\build_data\cache\records\cache_vendor_records.cpp" />
+    <ClCompile Include="src\state\build_data\vendors\vendor_catalog.cpp" />
+    <ClCompile Include="src\state\build_data\vendors\vendor_expression.cpp" />
+    <ClCompile Include="src\client\content\vendors\package_vendor_build.cpp" />
     <ClCompile Include="src\state\build_data\cache\records\cache_hash_name_records.cpp" />
     <ClCompile Include="src\state\build_data\cache\records\cache_detail_links.cpp" />
     <ClCompile Include="src\state\build_data\scenarios\scenario_catalog.cpp" />
@@ -604,6 +612,49 @@
     <ClCompile Include="src\client\content\items\packages\package_item_rows.cpp" />
     <ClCompile Include="src\client\diagnostics\module_range.cpp" />
     <ClCompile Include="src\client\process\freeze\client_process_freeze.cpp" />
+    <ClCompile Include="src\core\settings\address_text.cpp" />
+    <ClCompile Include="src\core\settings\server\gameplay\gameplay_settings_validation.cpp" />
+    <ClCompile Include="src\core\settings\server\gameplay\gameplay_settings_parser.cpp" />
+    <ClCompile Include="src\middleware\crypto\random_bytes.cpp" />
+    <ClCompile Include="src\middleware\crypto\sha256.cpp" />
+    <ClCompile Include="src\middleware\crypto\ecc_p224.cpp" />
+    <ClCompile Include="src\middleware\crypto\tiger192.cpp" />
+    <ClCompile Include="src\middleware\crypto\aes_cbc.cpp" />
+    <ClCompile Include="src\middleware\crypto\hmac.cpp" />
+    <ClCompile Include="src\middleware\crypto\lookup3.cpp" />
+    <ClCompile Include="src\middleware\crypto\murmur3.cpp" />
+    <ClCompile Include="src\middleware\crypto\aes_gcm_encrypt.cpp" />
+    <ClCompile Include="src\middleware\crypto\modular_1024.cpp" />
+    <ClCompile Include="src\middleware\encoding\bit_raw.cpp" />
+    <ClCompile Include="src\middleware\gameplay\association\srp_exchange.cpp" />
+    <ClCompile Include="src\middleware\gameplay\association\control_packet.cpp" />
+    <ClCompile Include="src\middleware\gameplay\association\protected_datagram.cpp" />
+    <ClCompile Include="src\middleware\gameplay\peer\peer_container.cpp" />
+    <ClCompile Include="src\middleware\gameplay\peer\connect_messages.cpp" />
+    <ClCompile Include="src\middleware\gameplay\peer\established_packet.cpp" />
+    <ClCompile Include="src\server\gameplay\gameplay_log.cpp" />
+    <ClCompile Include="src\server\gameplay\gameplay_runtime.cpp" />
+    <ClCompile Include="src\server\gameplay\endpoint\gameplay_endpoint.cpp" />
+    <ClCompile Include="src\server\gameplay\association\association_host.cpp" />
+    <ClCompile Include="src\server\gameplay\peer\peer_transport.cpp" />
+    <ClCompile Include="src\middleware\gameplay\descriptor\join_descriptor.cpp" />
+    <ClCompile Include="src\server\gameplay\gameplay_advertisement.cpp" />
+    <ClCompile Include="src\middleware\web_service\messages\opcode901\opcode901_codec.cpp" />
+    <ClCompile Include="src\middleware\gameplay\peer\reliable_assembly.cpp" />
+    <ClCompile Include="src\middleware\gameplay\peer\join_messages.cpp" />
+    <ClCompile Include="src\middleware\gameplay\group\session_messages.cpp" />
+    <ClCompile Include="src\middleware\gameplay\group\session_state.cpp" />
+    <ClCompile Include="src\middleware\gameplay\group\view_message.cpp" />
+    <ClCompile Include="src\middleware\gameplay\group\parameter_messages.cpp" />
+    <ClCompile Include="src\middleware\gameplay\group\parameter_registry.cpp" />
+    <ClCompile Include="src\middleware\gameplay\group\member_messages.cpp" />
+    <ClCompile Include="src\server\gameplay\group\group_host.cpp" />
+    <ClCompile Include="src\server\gameplay\group\group_host_sessions.cpp" />
+    <ClCompile Include="src\middleware\gameplay\nat\introduction.cpp" />
+    <ClCompile Include="src\middleware\gameplay\dtls\dtls_messages.cpp" />
+    <ClCompile Include="src\middleware\gameplay\dtls\association_keys.cpp" />
+    <ClCompile Include="src\middleware\gameplay\dtls\record.cpp" />
+    <ClCompile Include="src\server\gameplay\dtls\dtls_host.cpp" />
   </ItemGroup>
   <ItemGroup Condition="'$(SunriseRunClangTidy)'=='true'">
     <ClCompile Remove="vendor\detours\detours.cpp" />
@@ -813,6 +864,11 @@
     <ClInclude Include="src\state\build_data\hash_names\hash_name_catalog.h" />
     <ClInclude Include="src\state\build_data\hash_names\definition.h" />
     <ClInclude Include="src\state\build_data\spawn_sets\definition.h" />
+    <ClInclude Include="src\state\build_data\vendors\definition.h" />
+    <ClInclude Include="src\state\build_data\vendors\vendor_catalog.h" />
+    <ClInclude Include="src\state\build_data\vendors\vendor_expression.h" />
+    <ClInclude Include="src\client\content\vendors\layout.h" />
+    <ClInclude Include="src\client\content\vendors\vendor_build.h" />
     <ClInclude Include="src\state\build_data\scenarios\definition.h" />
     <ClInclude Include="src\state\build_data\runtime\persistence\build_data_persistence.h" />
     <ClInclude Include="src\state\build_data\runtime\persistence\publication_transaction.h" />
@@ -1047,6 +1103,49 @@
     <ClInclude Include="src\server\bap\encrypted\push\queuez\queuez_push_reporting.h" />
     <ClInclude Include="src\client\diagnostics\module_range.h" />
     <ClInclude Include="src\client\process\freeze\client_process_freeze.h" />
+    <ClInclude Include="src\core\settings\address_text.h" />
+    <ClInclude Include="src\core\settings\server\gameplay\definition.h" />
+    <ClInclude Include="src\middleware\crypto\random_bytes.h" />
+    <ClInclude Include="src\middleware\crypto\sha256.h" />
+    <ClInclude Include="src\middleware\crypto\ecc_p224.h" />
+    <ClInclude Include="src\middleware\crypto\tiger192.h" />
+    <ClInclude Include="src\middleware\crypto\aes_cbc.h" />
+    <ClInclude Include="src\middleware\crypto\hmac.h" />
+    <ClInclude Include="src\middleware\crypto\lookup3.h" />
+    <ClInclude Include="src\middleware\crypto\murmur3.h" />
+    <ClInclude Include="src\middleware\crypto\aes_gcm_encrypt.h" />
+    <ClInclude Include="src\middleware\crypto\modular_1024.h" />
+    <ClInclude Include="src\middleware\encoding\bit_raw.h" />
+    <ClInclude Include="src\middleware\gameplay\association\srp_exchange.h" />
+    <ClInclude Include="src\middleware\gameplay\association\control_packet.h" />
+    <ClInclude Include="src\middleware\gameplay\association\protected_datagram.h" />
+    <ClInclude Include="src\middleware\gameplay\peer\peer_container.h" />
+    <ClInclude Include="src\middleware\gameplay\peer\connect_messages.h" />
+    <ClInclude Include="src\middleware\gameplay\peer\established_packet.h" />
+    <ClInclude Include="src\state\gameplay\definition.h" />
+    <ClInclude Include="src\server\gameplay\gameplay_log.h" />
+    <ClInclude Include="src\server\gameplay\gameplay_runtime.h" />
+    <ClInclude Include="src\server\gameplay\endpoint\gameplay_endpoint.h" />
+    <ClInclude Include="src\server\gameplay\association\association_host.h" />
+    <ClInclude Include="src\server\gameplay\peer\peer_transport.h" />
+    <ClInclude Include="src\middleware\gameplay\descriptor\join_descriptor.h" />
+    <ClInclude Include="src\server\gameplay\gameplay_advertisement.h" />
+    <ClInclude Include="src\middleware\web_service\messages\opcode901\opcode901_codec.h" />
+    <ClInclude Include="src\middleware\gameplay\peer\reliable_assembly.h" />
+    <ClInclude Include="src\middleware\gameplay\peer\join_messages.h" />
+    <ClInclude Include="src\middleware\gameplay\group\session_messages.h" />
+    <ClInclude Include="src\middleware\gameplay\group\session_state.h" />
+    <ClInclude Include="src\middleware\gameplay\group\view_message.h" />
+    <ClInclude Include="src\middleware\gameplay\group\parameter_messages.h" />
+    <ClInclude Include="src\middleware\gameplay\group\parameter_registry.h" />
+    <ClInclude Include="src\middleware\gameplay\group\member_messages.h" />
+    <ClInclude Include="src\server\gameplay\group\group_host.h" />
+    <ClInclude Include="src\server\gameplay\group\group_host_sessions.h" />
+    <ClInclude Include="src\middleware\gameplay\nat\introduction.h" />
+    <ClInclude Include="src\middleware\gameplay\dtls\dtls_messages.h" />
+    <ClInclude Include="src\middleware\gameplay\dtls\association_keys.h" />
+    <ClInclude Include="src\middleware\gameplay\dtls\record.h" />
+    <ClInclude Include="src\server\gameplay\dtls\dtls_host.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

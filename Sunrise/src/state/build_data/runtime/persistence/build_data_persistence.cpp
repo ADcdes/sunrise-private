@@ -18,6 +18,7 @@
 #include "../../scenarios/scenario_catalog.h"
 #include "../../socket_entry_lists/socket_entry_list_catalog.h"
 #include "../../spawn_sets/spawn_set_catalog.h"
+#include "../../vendors/vendor_catalog.h"
 #include "../build_data_catalog_runtime.h"
 #include "../domain_markers.h"
 
@@ -59,6 +60,11 @@ to_record(const constants::InvestmentConstants& value) noexcept {
            && spawn_sets::snapshot(scratch.spawnStems, counts.spawnStems)
            && spawn_sets::snapshot_hashes(scratch.spawnNameHashes, counts.spawnNameHashes)
            && hash_names::snapshot(scratch.hashNames, counts.hashNames)
+           && vendors::snapshot_index(scratch.vendorIndex, counts.vendorIndex)
+           && vendors::snapshot_definitions(scratch.vendorDefinitions, counts.vendorDefinitions)
+           && vendors::snapshot_sale_rows(scratch.vendorSaleRows, counts.vendorSaleRows)
+           && vendors::snapshot_installed_rows(scratch.vendorInstalledRows,
+                                               counts.vendorInstalledRows)
            && cache::records::canonicalize(scratch, counts);
 }
 
@@ -95,6 +101,10 @@ cache::records::MutableDomains scratch_domains(Context& state) noexcept {
         state.spawnStemScratch,
         state.spawnNameHashScratch,
         state.hashNameScratch,
+        state.vendorIndexScratch,
+        state.vendorDefinitionScratch,
+        state.vendorSaleRowScratch,
+        state.vendorInstalledRowScratch,
     };
 }
 
@@ -122,6 +132,13 @@ void clear_locked(Context& state) noexcept {
     std::fill(
         scratch.spawnNameHashes.begin(), scratch.spawnNameHashes.end(), spawn_sets::NameHash{});
     std::fill(scratch.hashNames.begin(), scratch.hashNames.end(), hash_names::Name{});
+    std::fill(scratch.vendorIndex.begin(), scratch.vendorIndex.end(), vendors::IndexEntry{});
+    std::fill(
+        scratch.vendorDefinitions.begin(), scratch.vendorDefinitions.end(), vendors::Definition{});
+    std::fill(scratch.vendorSaleRows.begin(), scratch.vendorSaleRows.end(), vendors::SaleRow{});
+    std::fill(scratch.vendorInstalledRows.begin(),
+              scratch.vendorInstalledRows.end(),
+              vendors::InstalledRow{});
     state.constantsScratch = {};
     state.cacheDirectory = {};
     state.cachePath = {};
@@ -149,6 +166,10 @@ cache::records::Domains occupied_domains(Context& state,
         std::span(state.spawnStemScratch).first(counts.spawnStems),
         std::span(state.spawnNameHashScratch).first(counts.spawnNameHashes),
         std::span(state.hashNameScratch).first(counts.hashNames),
+        std::span(state.vendorIndexScratch).first(counts.vendorIndex),
+        std::span(state.vendorDefinitionScratch).first(counts.vendorDefinitions),
+        std::span(state.vendorSaleRowScratch).first(counts.vendorSaleRows),
+        std::span(state.vendorInstalledRowScratch).first(counts.vendorInstalledRows),
     };
 }
 

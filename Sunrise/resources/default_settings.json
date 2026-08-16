@@ -31,12 +31,21 @@
     },
     "fade_release": true,
     "force_join_request_ready": true,
+    "region_private": true,
     "pin_replicated_record": true,
     "hold_spawn": true,
     "spawn_hold_ms": 30000
   },
   "server": {
     "bap_port": 30974,
+    "gameplay": {
+      "topology": "disabled",
+      "bind_address": "127.0.0.1",
+      "advertised_address": "127.0.0.1",
+      "transport_address": "127.0.0.1",
+      "port": 30976,
+      "server_reserve_count": 256
+    },
     "entitlements": [
       { "name": "1085660", "owned": "handle" },
       { "name": "STEAM_PAID_TIER", "owned": "handle" },

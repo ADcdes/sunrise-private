@@ -51,26 +51,35 @@ void report_repush(const char* stage, std::size_t bytes) noexcept {
         || GetTickCount64() < session.bannerRepushDueTick) {
         return false;
     }
-    session.bannerRepushArmed = false;
-    // Nothing is owed while no character is selected. The pair has no character to name, and the
-    // first pick publishes it. Logging that as a failed re-push would be wrong.
-    if (state::account::selected_character_soid(state::account_snapshot()) == 0) {
+    // Nothing is owed while the account owns no character to name. The arm stays set, because it
+    // is the banner's only second chance.
+    if (state::account::banner_character_soid(state::account_snapshot()) == 0) {
         return false;
     }
     touchesScratch = true;
 
+    // The same body the subscribe answer builds, so the version and this host's mirror stay in
+    // step. `append_banner_notification` fixes the version at zero and a pick has moved past it.
+    middleware::queuez::Subscription subscription{};
+    subscription.familyType = queuez::kBannerFamilyType;
+    subscription.familyRootSoid = session.bannerRepushRoot;
+
     auto nextSendNonce = session.sendNonce;
     std::size_t framedSize = 0;
     queuez::SessionState bannerAfter{};
-    if (!push::append_banner_notification(scratch,
-                                          session.queuez,
-                                          session.bannerRepushRoot,
-                                          state::bap().sessionKey,
-                                          nextSendNonce,
-                                          scratch.framed,
-                                          framedSize,
-                                          bannerAfter)
-        || framedSize == 0 || framedSize > response.size()) {
+    bool armsRepush = false;
+    bool armsBannerRepush = false;
+    push::append_queuez_notification(scratch,
+                                     session.queuez,
+                                     subscription,
+                                     state::bap().sessionKey,
+                                     nextSendNonce,
+                                     scratch.framed,
+                                     framedSize,
+                                     bannerAfter,
+                                     armsRepush,
+                                     armsBannerRepush);
+    if (framedSize == 0 || framedSize > response.size()) {
         core::log::write(core::log::Channel::server,
                          core::log::Level::warn,
                          "ev=queuez stage=banner_repush result=fail");
@@ -79,10 +88,11 @@ void report_repush(const char* stage, std::size_t bytes) noexcept {
     std::copy_n(scratch.framed.begin(), framedSize, response.begin());
     written = framedSize;
     session.sendNonce = nextSendNonce;
-    // The frame is committed here, so the recorded delivery is committed with it.
+    // The frame is committed here, so the recorded delivery and the arm are committed with it.
     if (valid(bannerAfter)) {
         session.queuez = bannerAfter;
     }
+    session.bannerRepushArmed = false;
     report_repush("banner_repush", framedSize);
     return true;
 }
@@ -113,8 +123,7 @@ bool consume_deferred(Session& session,
                || push::activity::consume_activity_keepalive(
                    session, scratch, response, written, touchesScratch);
     }
-    // One attempt is owed. Disarm before trying.
-    session.family4RepushArmed = false;
+    // One attempt is owed, and it is spent whether or not it lands.
     touchesScratch = true;
 
     middleware::queuez::Subscription subscription{};
@@ -125,6 +134,7 @@ bool consume_deferred(Session& session,
     std::size_t framedSize = 0;
     queuez::SessionState after{};
     bool armsRepush = false;
+    bool armsBannerRepush = false;
     push::append_queuez_notification(scratch,
                                      session.queuez,
                                      subscription,
@@ -133,11 +143,16 @@ bool consume_deferred(Session& session,
                                      scratch.framed,
                                      framedSize,
                                      after,
-                                     armsRepush);
+                                     armsRepush,
+                                     armsBannerRepush);
     if (framedSize == 0 || framedSize > response.size()) {
+        // Neither failure clears on a retry. Holding the arm starves the keepalive, and the client
+        // drops the activity session once the keepalive stops.
+        session.family4RepushArmed = false;
         core::log::write(core::log::Channel::server,
                          core::log::Level::warn,
-                         "ev=queuez stage=repush result=fail");
+                         framedSize == 0 ? "ev=queuez stage=repush result=fail reason=encode"
+                                         : "ev=queuez stage=repush result=fail reason=capacity");
         return false;
     }
     std::copy_n(scratch.framed.begin(), framedSize, response.begin());
@@ -146,6 +161,7 @@ bool consume_deferred(Session& session,
     if (queuez::valid(after)) {
         session.queuez = after;
     }
+    session.family4RepushArmed = false;
     report_repush("repush", framedSize);
     return true;
 }

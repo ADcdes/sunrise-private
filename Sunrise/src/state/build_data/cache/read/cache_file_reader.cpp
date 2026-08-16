@@ -29,7 +29,11 @@ namespace {
            && counts.rosterGroups <= output.rosterGroups.size()
            && counts.spawnStems <= output.spawnStems.size()
            && counts.spawnNameHashes <= output.spawnNameHashes.size()
-           && counts.hashNames <= output.hashNames.size();
+           && counts.hashNames <= output.hashNames.size()
+           && counts.vendorIndex <= output.vendorIndex.size()
+           && counts.vendorDefinitions <= output.vendorDefinitions.size()
+           && counts.vendorSaleRows <= output.vendorSaleRows.size()
+           && counts.vendorInstalledRows <= output.vendorInstalledRows.size();
 }
 
 /** @return The header's row counts, as platform sizes. */
@@ -48,6 +52,10 @@ namespace {
         header.spawnStemCount,
         header.spawnNameHashCount,
         header.hashNameCount,
+        header.vendorIndexCount,
+        header.vendorDefinitionCount,
+        header.vendorSaleRowCount,
+        header.vendorInstalledRowCount,
     };
 }
 

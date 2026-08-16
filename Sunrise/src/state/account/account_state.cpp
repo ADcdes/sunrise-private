@@ -70,4 +70,18 @@ std::uint64_t selected_character_soid(const AccountState& state) noexcept {
     return 0;
 }
 
+/**
+ * Finds the character the family-zero banner pair names.
+ * The pair goes out before any pick, so it falls back to the first character.
+ * @param state Account snapshot read under the lock.
+ * @return The character's nonzero SOID, or zero when the account owns none.
+ */
+std::uint64_t banner_character_soid(const AccountState& state) noexcept {
+    const std::uint64_t selected = selected_character_soid(state);
+    if (selected != 0) {
+        return selected;
+    }
+    return state.characterCount == 0 ? 0 : state.characters[0].soid;
+}
+
 } // namespace sunrise::state::account

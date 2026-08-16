@@ -93,4 +93,32 @@ namespace sunrise::state::build_data::cache::records {
 /** @param value Receives the runtime row. @return True when the disk row is in standard form. */
 [[nodiscard]] bool decode(const SpawnNameHashRecord& record, spawn_sets::NameHash& value) noexcept;
 
+/** @param record Receives the packed disk row. @return Always true. */
+[[nodiscard]] bool encode(const vendors::IndexEntry& value, VendorIndexRecord& record) noexcept;
+
+/** @param value Receives the runtime row. @return True when the disk row is in standard form. */
+[[nodiscard]] bool decode(const VendorIndexRecord& record, vendors::IndexEntry& value) noexcept;
+
+/** @param record Receives the packed disk row. @return Always true. */
+[[nodiscard]] bool encode(const vendors::Definition& value,
+                          VendorDefinitionRecord& record) noexcept;
+
+/** @param value Receives the runtime row. @return True when the disk row is in standard form. */
+[[nodiscard]] bool decode(const VendorDefinitionRecord& record,
+                          vendors::Definition& value) noexcept;
+
+/** @param record Receives the packed disk row. @return Always true. */
+[[nodiscard]] bool encode(const vendors::SaleRow& value, VendorSaleRowRecord& record) noexcept;
+
+/** @param value Receives the runtime row. @return True when the disk row is in standard form. */
+[[nodiscard]] bool decode(const VendorSaleRowRecord& record, vendors::SaleRow& value) noexcept;
+
+/** @param record Receives the packed disk row. @return Always true. */
+[[nodiscard]] bool encode(const vendors::InstalledRow& value,
+                          VendorInstalledRowRecord& record) noexcept;
+
+/** @param value Receives the runtime row. @return True when the disk row is in standard form. */
+[[nodiscard]] bool decode(const VendorInstalledRowRecord& record,
+                          vendors::InstalledRow& value) noexcept;
+
 } // namespace sunrise::state::build_data::cache::records

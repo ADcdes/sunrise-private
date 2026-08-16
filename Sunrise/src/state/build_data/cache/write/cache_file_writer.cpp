@@ -25,7 +25,11 @@ namespace {
            && domains.abilityBuckets.size() <= kMaximumCount
            && domains.progressions.size() <= kMaximumCount
            && domains.scenarios.size() <= kMaximumCount
-           && domains.rosterGroups.size() <= kMaximumCount;
+           && domains.rosterGroups.size() <= kMaximumCount
+           && domains.vendorIndex.size() <= kMaximumCount
+           && domains.vendorDefinitions.size() <= kMaximumCount
+           && domains.vendorSaleRows.size() <= kMaximumCount
+           && domains.vendorInstalledRows.size() <= kMaximumCount;
 }
 
 /** @return True when the requested final-name rule is one of the declared values. */

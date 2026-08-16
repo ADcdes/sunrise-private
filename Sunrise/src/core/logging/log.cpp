@@ -4,6 +4,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 
 #include "../filesystem/path.h"
@@ -30,11 +31,15 @@ constexpr std::size_t kLineTerminatorBytes = 1;
 /** Event text stops before the CRLF and the trailing null. */
 constexpr std::size_t kEventTextCapacity =
     kLineCapacity - kLineEnding.size() - kLineTerminatorBytes;
+/** Longest " t=" field: the key plus a 64-bit millisecond count. */
+constexpr std::size_t kStampCapacity = 32;
 
 struct LogState {
     SRWLOCK lock{SRWLOCK_INIT};
     std::array<std::atomic<Level>, static_cast<std::size_t>(Channel::count)> levels{};
     HANDLE file{INVALID_HANDLE_VALUE};
+    /** Tick the sinks opened on. Every line carries its offset from this, so stalls are visible. */
+    ULONGLONG startTick{};
     bool debuggerSink{};
     bool initialized{};
 };
@@ -132,6 +137,7 @@ bool initialize(void* module, const Settings& settings) noexcept {
     }
     g_log.initialized = false;
     g_log.debuggerSink = settings.debuggerSink;
+    g_log.startTick = GetTickCount64();
     for (std::size_t index = 0; index < g_log.levels.size(); ++index) {
         g_log.levels[index].store(settings.levels[index], std::memory_order_relaxed);
     }
@@ -201,11 +207,22 @@ void write(Channel channel, Level level, std::string_view event) noexcept {
         return;
     }
 
+    std::array<char, kStampCapacity> stamp{};
+    const int stamped =
+        std::snprintf(stamp.data(),
+                      stamp.size(),
+                      " t=%llu ",
+                      static_cast<unsigned long long>(GetTickCount64() - g_log.startTick));
+
     std::array<char, kLineCapacity> line{};
     std::size_t length = append(line, 0, kChannelNames[channelIndex], kEventTextCapacity);
     length = append(line, length, " level=", kEventTextCapacity);
     length = append(line, length, kLevelNames[levelIndex], kEventTextCapacity);
-    length = append(line, length, " ", kEventTextCapacity);
+    length = append(line,
+                    length,
+                    stamped > 0 ? std::string_view(stamp.data(), static_cast<std::size_t>(stamped))
+                                : std::string_view(" "),
+                    kEventTextCapacity);
     length = append(line, length, event, kEventTextCapacity);
     const std::size_t snapshotLength = length;
     std::memcpy(line.data() + length, kLineEnding.data(), kLineEnding.size());

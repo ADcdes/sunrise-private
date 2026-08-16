@@ -44,6 +44,11 @@ void publish_connection_fields(Session& session,
                                const transactions::Publication& publication,
                                const ConnectionFields& fields) noexcept {
     if (publication.hasActivitySessionBinding) {
+        // Only the first binding decides the link's kind. A link that allocated its own session
+        // also joins later, and that join must not reclassify it.
+        if (session.activitySessionId == 0 && publication.activitySessionFromJoin) {
+            session.activityJoinedForeignSession = true;
+        }
         session.activitySessionId = publication.activitySessionId;
     }
     if (fields.joinMemberKey != 0) {
@@ -70,16 +75,19 @@ void publish_connection_fields(Session& session,
 
 /** Arms the owed Family-4 and banner re-pushes when the queuez publication asks for them. */
 void arm_repushes(Session& session, const queuez::StagedPublication& queuezPublication) noexcept {
-    if (!queuezPublication.armsFamily4Repush || queuezPublication.family4RepushRoot == 0) {
-        return;
-    }
     const std::uint64_t now = GetTickCount64();
-    session.family4RepushDueTick = now + kFamily4RepushDelayMs;
-    session.family4RepushRoot = queuezPublication.family4RepushRoot;
-    session.family4RepushArmed = true;
-    session.bannerRepushDueTick = now + kBannerRepushDelayMs;
-    session.bannerRepushRoot = queuezPublication.family4RepushRoot;
-    session.bannerRepushArmed = true;
+    if (queuezPublication.armsFamily4Repush && queuezPublication.family4RepushRoot != 0) {
+        session.family4RepushDueTick = now + kFamily4RepushDelayMs;
+        session.family4RepushRoot = queuezPublication.family4RepushRoot;
+        session.family4RepushArmed = true;
+    }
+    // Armed on its own signal, not on family four's. Family zero re-subscribes on every record
+    // cycle, and each subscribe needs a delayed copy because the immediate answer arrives too soon.
+    if (queuezPublication.armsBannerRepush && queuezPublication.bannerRepushRoot != 0) {
+        session.bannerRepushDueTick = now + kBannerRepushDelayMs;
+        session.bannerRepushRoot = queuezPublication.bannerRepushRoot;
+        session.bannerRepushArmed = true;
+    }
 }
 
 } // namespace sunrise::server::bap::encrypted

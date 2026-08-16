@@ -20,6 +20,7 @@
 #include "scenarios/scenario_catalog.h"
 #include "socket_entry_lists/socket_entry_list_catalog.h"
 #include "spawn_sets/spawn_set_catalog.h"
+#include "vendors/vendor_catalog.h"
 
 namespace sunrise::state::build_data {
 namespace {
@@ -104,6 +105,12 @@ bool initialize(void* module, std::uint64_t configuredEquipmentHash) noexcept {
         // An empty catalog is complete, so the spawn-set replace is skipped rather than failed.
         || (!domains.spawnStems.empty()
             && !spawn_sets::replace(domains.spawnStems, domains.spawnNameHashes))
+        // An empty catalog is complete, so the vendor replace is skipped rather than failed.
+        || (!domains.vendorIndex.empty()
+            && !vendors::replace(domains.vendorIndex,
+                                 domains.vendorDefinitions,
+                                 domains.vendorSaleRows,
+                                 domains.vendorInstalledRows))
         || !hash_names::replace(domains.hashNames)) {
         // No domain remains published when any catalog rejects the cache transaction.
         runtime::clear_catalogs();
