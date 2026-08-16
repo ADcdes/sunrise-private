@@ -8,8 +8,8 @@
 namespace sunrise::state::build_data {
 namespace {
 
-/** Profile bucket holding mods and ornaments, which stay owned after they are applied. */
-constexpr std::uint8_t kModBucketId = 13;
+/** Profile bucket holding ornaments, which stay owned after they are applied. */
+constexpr std::uint8_t kOrnamentBucketId = 13;
 /** Profile bucket holding shaders, which are spent by the application. */
 constexpr std::uint8_t kShaderBucketId = 14;
 
@@ -77,11 +77,18 @@ bool is_consumed_on_apply(std::uint16_t itemDefinitionIndex, std::uint8_t bucket
     return bucketId == kShaderBucketId && collectibles::grants_item(itemDefinitionIndex);
 }
 
-/** Answers whether one installed profile row is a materializable socket action source. */
+/**
+ * Answers whether one installed profile row is a materializable socket action source.
+ *
+ * Only ornaments and shaders qualify. Mods are bucket 37 and sit outside this model on purpose:
+ * they are permanent unlocks rather than stacks, and nothing in the account records which are
+ * unlocked, so no answer here could say whether it holds one.
+ */
 bool is_profile_action_source(std::uint16_t itemDefinitionIndex, std::uint8_t bucketId) noexcept {
     items::details::Definition detail{};
     inventory::buckets::Descriptor bucket{};
-    if ((bucketId != kModBucketId && bucketId != kShaderBucketId) || !socket_plug_rules_ready()
+    if ((bucketId != kOrnamentBucketId && bucketId != kShaderBucketId)
+        || !socket_plug_rules_ready()
         || !find_configured_item_detail(itemDefinitionIndex, detail)
         || detail.definitionIndex != itemDefinitionIndex || detail.bucketId != bucketId
         || !find_inventory_bucket_descriptor(bucketId, bucket)
