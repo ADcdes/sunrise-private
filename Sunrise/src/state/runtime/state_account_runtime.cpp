@@ -1637,7 +1637,9 @@ apply_dismantle_rewards(const AccountState& before,
             break;
         }
     }
-    if (inventoryIndex >= before.inventory.count) {
+    if (inventoryIndex >= before.inventory.count
+        || (before.inventory.values[inventoryIndex].flags & authored_inventory::kLockedItemFlag)
+               != 0) {
         return false;
     }
 

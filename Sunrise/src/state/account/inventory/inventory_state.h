@@ -56,6 +56,11 @@ inline constexpr std::size_t kProfileActionSourceCapacity = 100;
 /** Runtime-owned SOIDs for profile stacks use a namespace separate from created item instances. */
 inline constexpr std::uint64_t kFirstProfileItemInstanceSoid = 0x5000000000000001ULL;
 /**
+ * Native item-state bit the Client sets to lock one item against destruction.
+ * Confirmed against the installed build by three observed lock and unlock transitions.
+ */
+inline constexpr std::uint32_t kLockedItemFlag = 0x1;
+/**
  * The 16 supported character equipment buckets reserve 151 native rows in this build. One row
 
  * * per semantic slot can be equipped, leaving at most 135 simultaneously unequipped instances.
