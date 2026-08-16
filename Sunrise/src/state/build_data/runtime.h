@@ -185,6 +185,16 @@ publish_socket_plug_rules(std::span<const items::socket_plugs::Rule> rules,
 [[nodiscard]] bool is_profile_action_source(std::uint16_t itemDefinitionIndex,
                                             std::uint8_t bucketId) noexcept;
 
+/**
+ * Answers whether applying one plug spends a stack the account has to hold.
+ * @param itemDefinitionIndex Installed plug-definition row.
+ * @param bucketId Installed profile bucket the plug belongs to.
+ * @return True only for a shader Collections can grant. An ornament stays owned once applied,
+ *         and a socket's default plug belongs to no stack at all.
+ */
+[[nodiscard]] bool is_consumed_on_apply(std::uint16_t itemDefinitionIndex,
+                                        std::uint8_t bucketId) noexcept;
+
 /** @return True when the whole progression definition table is in State. */
 [[nodiscard]] bool progression_definitions_ready() noexcept;
 

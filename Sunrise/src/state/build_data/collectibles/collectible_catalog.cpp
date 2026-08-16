@@ -90,6 +90,20 @@ bool find(std::uint16_t collectibleIndex, Definition& definition) noexcept {
     return found;
 }
 
+/** Answers whether any published collectible grants one installed item row. */
+bool grants_item(std::uint16_t itemDefinitionIndex) noexcept {
+    if (itemDefinitionIndex == kUnavailableItemDefinitionIndex) {
+        return false;
+    }
+    const Lock::Shared guard(g_lock);
+    for (const Definition& definition : g_definitions.rows()) {
+        if (definition.itemDefinitionIndex == itemDefinitionIndex) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /** Copies the dense rows without exposing catalog storage. */
 bool snapshot(std::span<Definition> output, std::size_t& count) noexcept {
     const Lock::Shared guard(g_lock);

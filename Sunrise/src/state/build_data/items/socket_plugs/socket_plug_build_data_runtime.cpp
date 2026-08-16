@@ -1,4 +1,5 @@
 #include "../../runtime.h"
+#include "../../collectibles/collectible_catalog.h"
 #include "../../runtime/persistence/publication_transaction.h"
 #include "../details/item_detail_catalog.h"
 #include "../item_catalog.h"
@@ -6,6 +7,11 @@
 
 namespace sunrise::state::build_data {
 namespace {
+
+/** Profile bucket holding mods and ornaments, which stay owned after they are applied. */
+constexpr std::uint8_t kModBucketId = 13;
+/** Profile bucket holding shaders, which are spent by the application. */
+constexpr std::uint8_t kShaderBucketId = 14;
 
 /** Checks every exact socket relation link against the already-published item details. */
 [[nodiscard]] bool
@@ -59,10 +65,20 @@ bool is_socket_plug_allowed(std::uint16_t itemDefinitionIndex,
            && items::socket_plugs::allowed(itemDefinitionIndex, lane, plugDefinitionIndex);
 }
 
+/**
+ * Answers whether applying one plug spends a stack the account has to hold.
+ *
+ * Only a shader is spent: an ornament stays owned once applied. The plug also has to be
+ * one an account can come to own, which means Collections can grant it. A socket's default plug
+ * is not in Collections and belongs to no stack, so clearing a socket back to it costs nothing
+ * and is always available, whatever the item's own factory plug happens to be.
+ */
+bool is_consumed_on_apply(std::uint16_t itemDefinitionIndex, std::uint8_t bucketId) noexcept {
+    return bucketId == kShaderBucketId && collectibles::grants_item(itemDefinitionIndex);
+}
+
 /** Answers whether one installed profile row is a materializable socket action source. */
 bool is_profile_action_source(std::uint16_t itemDefinitionIndex, std::uint8_t bucketId) noexcept {
-    constexpr std::uint8_t kModBucketId = 13;
-    constexpr std::uint8_t kShaderBucketId = 14;
     items::details::Definition detail{};
     inventory::buckets::Descriptor bucket{};
     if ((bucketId != kModBucketId && bucketId != kShaderBucketId) || !socket_plug_rules_ready()

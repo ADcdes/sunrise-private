@@ -47,6 +47,13 @@ void clear() noexcept;
 /** Finds one collectible by the native 15-bit index carried by the request. */
 [[nodiscard]] bool find(std::uint16_t collectibleIndex, Definition& definition) noexcept;
 
+/**
+ * Answers whether any collectible grants one installed item row.
+ * @param itemDefinitionIndex Installed item-definition row.
+ * @return True when Collections can grant that item, so an account can come to own it.
+ */
+[[nodiscard]] bool grants_item(std::uint16_t itemDefinitionIndex) noexcept;
+
 /** Copies every row in native collectible-index order. */
 [[nodiscard]] bool snapshot(std::span<Definition> output, std::size_t& count) noexcept;
 

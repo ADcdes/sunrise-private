@@ -438,6 +438,23 @@ apply_collection_materials(const AccountState& before,
         changed);
 }
 
+/**
+ * Answers whether the account holds one applicable stack of a socket action source.
+ * @param account Account whose profile stacks are searched.
+ * @param definitionHash Plug definition the Client asked to apply.
+ * @return True when a profile stack of that definition holds at least one unit.
+ */
+[[nodiscard]] bool holds_plug_source(const AccountState& account,
+                                     std::uint32_t definitionHash) noexcept {
+    for (std::size_t index = 0; index < account.profileItemCount; ++index) {
+        const authored_inventory::ProfileItem& item = account.profileItems[index];
+        if (item.definitionHash == definitionHash && item.quantity > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /** Applies one dense installed action-cost set resolved from the selected plug or action row. */
 [[nodiscard]] bool
 apply_action_materials(const AccountState& before,
@@ -1156,6 +1173,20 @@ character_item_at(CharacterState& character, const CharacterItemLocation& locati
         || !build_data::is_socket_plug_allowed(
             targetDefinition.definitionIndex, socketLane, plugDefinitionIndex)) {
         return fail("definition_or_compatibility");
+    }
+
+    // Ownership is only meaningful where the plug is a finite supply the account draws down. A
+    // shader is one: it is pulled from Collections into a profile stack and spent by applying it.
+    // An ornament is a permanent unlock the account holds once earned, not a stack it draws
+    // down, which is why the Client offers every valid one for a socket. Requiring a stack for
+    // one would refuse a plug the account already has.
+    const bool consumesStack =
+        build_data::is_profile_action_source(plugDefinitionIndex, plugDefinition.bucketId)
+        && build_data::is_consumed_on_apply(plugDefinitionIndex, plugDefinition.bucketId)
+        && !(socketLane < detail.initialPlugIndices.size()
+             && detail.initialPlugIndices[socketLane] == plugDefinitionIndex);
+    if (consumesStack && !holds_plug_source(snapshot, plugDefinition.definitionHash)) {
+        return fail("plug_ownership");
     }
 
     AccountState chargedAccount = snapshot;
