@@ -650,6 +650,7 @@
     <ClCompile Include="src\middleware\crypto\random_bytes.cpp" />
     <ClCompile Include="src\middleware\crypto\sha256.cpp" />
     <ClCompile Include="src\middleware\crypto\ecc_p224.cpp" />
+    <ClCompile Include="src\middleware\crypto\ecc_p224_curve.cpp" />
     <ClCompile Include="src\middleware\crypto\tiger192.cpp" />
     <ClCompile Include="src\middleware\crypto\aes_cbc.cpp" />
     <ClCompile Include="src\middleware\crypto\hmac.cpp" />
@@ -1154,6 +1155,7 @@
     <ClInclude Include="src\middleware\crypto\random_bytes.h" />
     <ClInclude Include="src\middleware\crypto\sha256.h" />
     <ClInclude Include="src\middleware\crypto\ecc_p224.h" />
+    <ClInclude Include="src\middleware\crypto\ecc_p224_curve.h" />
     <ClInclude Include="src\middleware\crypto\tiger192.h" />
     <ClInclude Include="src\middleware\crypto\aes_cbc.h" />
     <ClInclude Include="src\middleware\crypto\hmac.h" />
