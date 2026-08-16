@@ -600,6 +600,15 @@ bool commit_equipment_swap(PendingEquipmentSwap& mutation) noexcept {
     runtime::storage::g_state.account = candidate;
     ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
 
+    // The published ability buckets are resolved against whichever subclass is currently
+    // equipped; swapping that item away makes the domain stale the same way an ability-entry
+    // pick does, so it needs the same invalidation or the character screen keeps showing
+    // whatever the previous subclass resolved to until something else happens to refresh it.
+    if (prepared.equipmentSlotIndex
+        == static_cast<std::size_t>(authored_inventory::EquipmentSlot::subclass)) {
+        build_data::invalidate_ability_buckets();
+    }
+
     report_equipment("commit_end",
                      "ok",
                      prepared.kind,
