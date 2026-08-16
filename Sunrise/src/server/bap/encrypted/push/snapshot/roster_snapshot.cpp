@@ -21,6 +21,7 @@ namespace character_record = middleware::datagen::character_record;
  * @param scratch Raw object storage owned by the lock.
  * @param account Account State read under the lock.
  * @param rawExtent First unused raw byte, advanced for every record.
+ * @param compressedExtent First unused sealed byte, advanced for every record.
  * @param staged Snapshot that takes one descriptor per character.
  * @param objectCount Descriptors already staged, advanced for every record.
  * @return True when every character is found and its record fits raw storage.

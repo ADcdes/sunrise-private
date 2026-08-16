@@ -40,10 +40,8 @@ valid_socket_plug_links(std::span<const items::socket_plugs::Rule> rules,
 
 /**
  * Checks every collectible item index against the complete dense item table.
- * @param
- * collectibles Complete dense collectible rows.
- * @param itemDefinitions Complete dense item
- * rows.
+ * @param collectibleDefinitions Complete dense collectible rows.
+ * @param itemDefinitions Complete dense item rows.
  * @return True when each row has its own ordinal and every available item link exists.
  */
 [[nodiscard]] bool

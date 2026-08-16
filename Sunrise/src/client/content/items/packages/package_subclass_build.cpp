@@ -42,7 +42,11 @@ constexpr std::size_t kSubclassSlot =
     return true;
 }
 
-/** @param rows Rows built so far. @return True when the candidate's key is already held. */
+/**
+ * @param rows Rows built so far.
+ * @param row Candidate whose key is tested against them.
+ * @return True when the candidate's key is already held.
+ */
 [[nodiscard]] bool held(std::span<const domain::Definition> rows,
                         const domain::Definition& row) noexcept {
     for (const domain::Definition& existing : rows) {

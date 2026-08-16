@@ -23,8 +23,10 @@ namespace family4_datagen = middleware::datagen::family4;
 /**
  * Publishes the staged family metadata once every needed object is done.
  * @param subscription Family id the Client picked.
+ * @param objectCount Descriptors staged for this family.
  * @param compressedExtent Size of the used prefix of the sealed buffer.
  * @param reservation Cleanup extent carried over from any prior live snapshot.
+ * @param staged Descriptors and clear extents built by the caller.
  * @param output Gets the family snapshot only on success.
  * @return True when the staged descriptors pass the ownership check.
  */

@@ -154,6 +154,7 @@ void append_initial_plugs(const tables::items::Row& row,
  * @param source Located item index table and package reader state.
  * @param definitionIndex Native item index.
  * @param detail Receives the cached detail.
+ * @param item Receives the raw definition row the detail was built from.
  * @return True when the row is found and its definition blob reads.
  */
 [[nodiscard]] bool build_detail(const DetailSource& source,
@@ -298,7 +299,11 @@ void report_bucket_equipment_failure(const char* stage,
                                      std::size_t first,
                                      std::size_t second) noexcept;
 
-/** Reports the pass outcome once. @param published Rows published, or zero on failure. */
+/**
+ * Reports the pass outcome once.
+ * @param published Rows published, or zero on failure.
+ * @param reason Stage the pass reached, named in the line.
+ */
 void report(std::size_t published, const char* reason) noexcept;
 
 /**

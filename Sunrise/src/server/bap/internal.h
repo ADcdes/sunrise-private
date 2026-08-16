@@ -103,6 +103,7 @@ namespace plaintext {
  * Handles plaintext bootstrap services, arms encryption after service 25, and routes the rest.
  * @param session Auth and nonce state owned by the connection.
  * @param scratch Transform buffers owned by the lock, kept off the Client thread stack.
+ * @param outer Parsed outer frame carrying the service id and its body.
  * @param response Whole-frame storage owned by the caller.
  * @param written Gets the encoded response size in bytes.
  * @return True when the service owes no reply, or its response is encoded.

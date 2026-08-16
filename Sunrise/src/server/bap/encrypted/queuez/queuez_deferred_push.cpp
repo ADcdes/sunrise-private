@@ -19,6 +19,7 @@ constexpr std::size_t kRepushReportLimit = 96;
 
 /**
  * Logs one delayed re-push with its framed size, so it can be compared to the first copy.
+ * @param stage Point in the deferred push the line reports.
  * @param bytes Framed size of the published notification.
  */
 void report_repush(const char* stage, std::size_t bytes) noexcept {

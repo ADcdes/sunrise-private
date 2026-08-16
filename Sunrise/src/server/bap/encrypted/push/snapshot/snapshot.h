@@ -81,14 +81,17 @@ struct Prepared {
 
 /**
  * Builds the one-record Family-0 incremental that refreshes rendered equipment in place.
- * The
- * record is encoded from the prepared State after-image because the equipment transaction is
- * not
- * committed until both Family-4 and Family-0 frames fit.
- * @param replaceCharacterRecord Release
- * and recreate the same resident record so same-instance
- *        shader and ornament changes
- * rebuild the live-world render binding.
+ * The record is encoded from the prepared State after-image because the equipment transaction is
+ * not committed until both Family-4 and Family-0 frames fit.
+ * @param scratch Raw object storage owned by the lock.
+ * @param refresh Family-0 root, version, and resident the incremental is built against.
+ * @param afterCharacter Prepared State after-image the record is encoded from.
+ * @param characterIndex Position of that character in the account.
+ * @param nativeEquipmentSlot Native slot whose rendered item changed.
+ * @param replaceCharacterRecord Release and recreate the same resident record so same-instance
+ *        shader and ornament changes rebuild the live-world render binding.
+ * @param prepared Gets the descriptors and the scratch clear extent.
+ * @return True when the character resolves and every object fits raw storage.
  */
 [[nodiscard]] bool
 prepare_character_appearance_refresh(Scratch& scratch,

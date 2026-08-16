@@ -59,8 +59,7 @@ read(std::span<const std::byte> blob, std::size_t offset, Value& value) noexcept
 
 /**
  * Reads the gear-art index and every class-qualified arrangement the art block declares.
- * @param
- * definition Whole item definition bytes.
+ * @param definition Whole item definition bytes.
  * @param art Art block offset.
  * @param row Receives both art indices.
  */

@@ -84,6 +84,7 @@ void read_socket_entry_list(std::span<const std::byte> definition, Row& row) noe
  * Reads the optional equipment slot a definition declares.
  * @param definition Whole item definition bytes.
  * @param slot Receives the slot when the block is present and readable.
+ * @param raw Receives the unvalidated declared value, or -1 when the block is absent.
  */
 void read_equipment_slot(std::span<const std::byte> definition,
                          std::optional<std::int8_t>& slot,

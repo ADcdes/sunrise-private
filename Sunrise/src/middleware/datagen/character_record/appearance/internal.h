@@ -59,6 +59,7 @@ void apply_sentinels(layout::Appearance& appearance) noexcept;
 /**
  * Fills each equipped render row with its instance, definition, art and material pairs.
  * @param instances Resolved item instances belonging to one character.
+ * @param characterClass Class whose art rows are selected when a definition carries them.
  * @param appearance Appearance block receiving the render rows.
  * @return True when every instance addresses a render row.
  */

@@ -103,7 +103,11 @@ template <std::size_t Size>
     return account::valid(accountState);
 }
 
-/** Canonicalizes only profile rows which the installed socket UI materializes as action sources. */
+/**
+ * Canonicalizes only profile rows which the installed socket UI materializes as action sources.
+ * @param accountState Account canonicalized in place.
+ * @return True when every profile row canonicalizes.
+ */
 [[nodiscard]] bool canonicalize_profile_item_identities(AccountState& accountState) noexcept {
     if (!account::valid(accountState) || !build_data::socket_plug_rules_ready()) {
         return false;

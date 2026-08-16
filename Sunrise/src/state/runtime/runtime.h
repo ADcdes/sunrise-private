@@ -275,17 +275,14 @@ void shutdown() noexcept;
 
 /**
  * Prepares one installed equippable definition as a new selected-character inventory instance.
-
- * * Native-default sockets, a unique runtime SOID, and the selected character's current item level
-
- * * are used. Full loadout resolution is the authoritative bucket-capacity check.
  *
- * @param
- * definitionHash Installed item definition requested by the Client.
- * @param mutation Gets a
- * checked after-image without changing account State.
- * @return True when the item and every
- * existing loadout row resolve with one free native row.
+ * Native-default sockets, a unique runtime SOID, and the selected character's current item level
+ * are used. Full loadout resolution is the authoritative bucket-capacity check.
+ *
+ * @param collectibleIndex Collections row the Client pulled from.
+ * @param definitionHash Installed item definition requested by the Client.
+ * @param mutation Gets a checked after-image without changing account State.
+ * @return True when the item and every existing loadout row resolve with one free native row.
  */
 [[nodiscard]] bool prepare_item_acquisition(std::uint16_t collectibleIndex,
                                             std::uint32_t definitionHash,
@@ -297,13 +294,10 @@ void shutdown() noexcept;
 
 /**
  * Commits a prepared inventory insertion only while its selected character, existing loadout,
-
- * * and next inventory serial still match the prepare-time view.
+ * and next inventory serial still match the prepare-time view.
  *
- * @param mutation Prepared
- * mutation, always cleared before this function returns.
- * @return True when the insertion commits
- * atomically and leaves the whole account valid.
+ * @param mutation Prepared mutation, always cleared before this function returns.
+ * @return True when the insertion commits atomically and leaves the whole account valid.
  */
 [[nodiscard]] bool commit_item_acquisition(PendingItemAcquisition& mutation) noexcept;
 
@@ -313,6 +307,7 @@ void shutdown() noexcept;
  * An existing non-full stack is incremented. Otherwise a new dense State entry is appended only
  * when the installed profile bucket still owns a free native row.
  *
+ * @param collectibleIndex Collections row the Client pulled from.
  * @param definitionHash Installed stackable definition requested by the Client.
  * @param mutation Gets the checked profile before/after images without changing account State.
  * @return True when the definition belongs to the main profile array and one unit fits.

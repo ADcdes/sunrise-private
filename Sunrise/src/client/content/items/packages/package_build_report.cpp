@@ -164,7 +164,11 @@ void report_bucket_equipment_failure(const char* stage,
     }
 }
 
-/** Reports the pass outcome once. @param published Rows published, or zero on failure. */
+/**
+ * Reports the pass outcome once.
+ * @param published Rows published, or zero on failure.
+ * @param reason Stage the pass reached, named in the line.
+ */
 void report(std::size_t published, const char* reason) noexcept {
     if (g_reported.exchange(true, std::memory_order_relaxed)) {
         return;
