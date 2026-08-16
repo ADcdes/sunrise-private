@@ -185,15 +185,17 @@ static_assert(sizeof(EquipmentSummary)
               == kSummaryArrayCount * kEquipmentCapacity * sizeof(EquipmentSummaryEntry)
                      + kSummaryIntegerCount * sizeof(std::int32_t)
                      + kSummaryScalarCount * sizeof(float));
-static_assert(sizeof(InventoryChangeRecord) == 12);
-static_assert(offsetof(InventoryChangeRecord, sequence) == 0);
-static_assert(offsetof(InventoryChangeRecord, mutationSerial) == 4);
-static_assert(offsetof(InventoryChangeRecord, kind) == 8);
-static_assert(offsetof(InventoryChangeRecord, flags) == 10);
+static_assert(sizeof(InventoryChangeRecord)
+              == 3 * sizeof(std::uint16_t) + sizeof(std::int32_t) + 2 * sizeof(std::uint8_t));
+static_assert(offsetof(InventoryChangeRecord, mutationSerial) == 2 * sizeof(std::uint16_t));
+static_assert(offsetof(InventoryChangeRecord, kind)
+              == 2 * sizeof(std::uint16_t) + sizeof(std::int32_t));
+static_assert(offsetof(InventoryChangeRecord, flags)
+              == 2 * sizeof(std::uint16_t) + sizeof(std::int32_t) + 2 * sizeof(std::uint8_t));
 static_assert(sizeof(InventoryChangeList)
-              == sizeof(std::uint32_t)
+              == 2 * sizeof(std::uint16_t)
                      + kInventoryChangeRecordCapacity * sizeof(InventoryChangeRecord));
-static_assert(offsetof(InventoryChangeList, records) == 4);
+static_assert(offsetof(InventoryChangeList, records) == 2 * sizeof(std::uint16_t));
 static_assert(sizeof(Object) == kObjectSize);
 static_assert(std::is_trivially_copyable_v<Object>);
 

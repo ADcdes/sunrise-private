@@ -52,13 +52,9 @@ constexpr std::size_t kNoMutation = 0;
 constexpr std::int32_t kRefusedStatus = 1;
 
 /**
- * Logs which Web Service opcode arrived and a bounded payload trace. One svc-10 frame looks like
- *
- * any other in the log, and the opcodes and bit descriptors the Client sends drive its queuez
- *
- * state machine. The bounded hex is diagnostic protocol evidence, not a second parser.
- * @param
- * message Parsed request envelope and borrowed payload.
+ * Logs the Web Service opcode and a bounded payload trace.
+ * One svc-10 frame looks like any other, and the opcode drives the client's queuez state machine.
+ * @param message Parsed request envelope and borrowed payload.
  */
 void report_request(const middleware::web_service::Message& message) noexcept {
     std::array<char, core::log::kLineCapacity> line{};

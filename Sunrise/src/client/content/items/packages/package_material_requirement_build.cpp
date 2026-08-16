@@ -12,6 +12,13 @@
 namespace sunrise::client::content::items::packages {
 namespace {
 
+/**
+ * Reports the requirement-set extraction result once per build.
+ * @param sets Sets read from the table.
+ * @param conditionalRows Rows carrying a condition, counted for the same line.
+ * @param valid True when the table passed its checks.
+ * @param published True when the table reached the catalog, which sets the level.
+ */
 void report_material_requirements(std::size_t sets,
                                   std::size_t conditionalRows,
                                   bool valid,
@@ -32,6 +39,12 @@ void report_material_requirements(std::size_t sets,
     }
 }
 
+/**
+ * Names the row that stopped the requirement-set build.
+ * @param reason Short key naming the failing step.
+ * @param set Requirement set being read, or zero before one was picked.
+ * @param row Requirement row being read, or zero before one was picked.
+ */
 void report_material_requirement_failure(const char* reason,
                                          std::size_t set,
                                          std::size_t row) noexcept {
@@ -52,6 +65,15 @@ void report_material_requirement_failure(const char* reason,
 
 } // namespace
 
+/**
+ * Extracts the material requirement sets from the installed packages and publishes them.
+ * The build is skipped when the catalog already holds the domain.
+ * @param source Borrowed package reader.
+ * @param storage Caller-owned scratch and definition buffers.
+ * @param root Borrowed root table bytes.
+ * @param itemDefinitionCount Item count the requirement rows are checked against.
+ * @return True when the domain is ready, either already or after this build.
+ */
 bool build_material_requirements(const reader::Source& source,
                                  Storage& storage,
                                  std::span<const std::byte> root,

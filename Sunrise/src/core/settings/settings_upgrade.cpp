@@ -214,8 +214,7 @@ bool apply(std::string_view document,
 
     const std::uint32_t from = document_version(document);
     for (const ReplacedMember& member : kReplacedMembers) {
-        // A file at or past that version keeps its own value, so an upgrade never overwrites a
-        // choice the user made against the current layout.
+        // A file at or past that version keeps its own value, so a user choice is never lost.
         if (from >= member.version) {
             continue;
         }

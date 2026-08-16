@@ -17,6 +17,12 @@ void clear() noexcept {
     g_definitions.clear();
 }
 
+/**
+ * Checks one complete requirement-set table before it is published.
+ * A set owns its index, so a duplicate or out-of-range index rejects the whole table.
+ * @param definitions Candidate rows, indexed by requirement-set index.
+ * @return True when every set is unique and in range, and its unused rows are clear.
+ */
 bool valid(std::span<const Definition> definitions) noexcept {
     if (definitions.empty() || definitions.size() > kDefinitionCapacity) {
         return false;
@@ -53,6 +59,11 @@ bool valid(std::span<const Definition> definitions) noexcept {
     return true;
 }
 
+/**
+ * Validates one table and publishes it, placing each set at its own index.
+ * @param definitions Candidate rows, rejected as a whole when any row is invalid.
+ * @return True when the table replaced the published one.
+ */
 bool replace(std::span<const Definition> definitions) noexcept {
     if (!valid(definitions)) {
         return false;
