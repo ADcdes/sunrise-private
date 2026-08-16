@@ -1,18 +1,18 @@
 #include "host_environment.h"
 
-#include "windows.h"
+#include <Windows.h>
 
 namespace sunrise::core::runtime {
-bool is_wine() {
-    static const bool is_linux = []() -> bool {
-        HMODULE hntdll = GetModuleHandleW(L"ntdll.dll");
-        if (!hntdll) {
-            return false;
-        }
-        return GetProcAddress(hntdll, "wine_get_version")
-               != nullptr; // Exported by wine to identify itself but not by real windows
-    }();
 
-    return is_linux;
+/** @return True when the loaded ntdll exports Wine's own version entry point. */
+bool is_wine() noexcept {
+    // Wine exports this from ntdll to name itself and Windows never does. The host cannot change
+    // while the process lives, so the answer is resolved once.
+    static const bool underWine = [] {
+        const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+        return ntdll != nullptr && GetProcAddress(ntdll, "wine_get_version") != nullptr;
+    }();
+    return underWine;
 }
+
 } // namespace sunrise::core::runtime

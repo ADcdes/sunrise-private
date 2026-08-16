@@ -1,10 +1,10 @@
-#include <string>
+#include <string_view>
 
+#include "../../../../core/runtime/host_environment.h"
 #include "../dns/egress_dns_replacements.h"
 #include "../extensions/egress_extension_replacements.h"
 #include "../resolver/replacements.h"
 #include "../winsock/replacements.h"
-#include "core/runtime/host_environment.h"
 #include "internal.h"
 
 namespace sunrise::client::hooks::egress::lifecycle {
@@ -22,21 +22,31 @@ export_definition(ModuleSlot module, const char* name, Function replacement) noe
     return ExportDefinition{module, name, reinterpret_cast<void*>(replacement)};
 }
 
+/** Winsock's own generic failure code, which a refused connection call answers with. */
+constexpr int kSocketError = -1;
+/** WSAHOST_NOT_FOUND. A refused name lookup answers with it, so nothing resolves an address. */
+constexpr int kHostNotFound = 11001;
+
+/**
+ * Stands in for one export Wine does not provide, so the guard still owns the call.
+ * Detours copies at least five bytes from a target, so the body must not fold away to a bare
+ * return. The volatile store is what keeps it long enough to detour.
+ * @return The refusal the real export would answer with.
+ */
+__declspec(noinline) int WSAAPI absent_connect_by_list() noexcept {
+    volatile int occupied = 0;
+    occupied += 1;
+    return kSocketError;
+}
+
+/** @return The refusal the real export would answer with. See absent_connect_by_list. */
+__declspec(noinline) int WSAAPI absent_address_info_ex_a() noexcept {
+    volatile int occupied = 0;
+    occupied += 1;
+    return kHostNotFound;
+}
+
 } // namespace
-
-// Dummy functions, these are not exported by wine so we provide at least 5 bytes for detours to
-// copy
-__declspec(noinline) int WSAAPI Dummy_WSAConnectByList() {
-    volatile int dummy = 0;
-    dummy += 1;
-    return -1; // SOCKET_ERROR
-}
-
-__declspec(noinline) int WSAAPI Dummy_GetAddrInfoExA() {
-    volatile int dummy = 0;
-    dummy += 1;
-    return 11001; // WSAHOST_NOT_FOUND
-}
 
 /** Finds the whole Windows SDK egress surface for one atomic Detours batch. */
 bool resolve_specs(std::span<hooking::detour::Spec, kHookCount> specs,
@@ -44,7 +54,7 @@ bool resolve_specs(std::span<hooking::detour::Spec, kHookCount> specs,
                    std::span<bool, kHookCount> resolved,
                    std::size_t& count) noexcept {
     count = 0;
-    const bool is_wine = sunrise::core::runtime::is_wine();
+    const bool underWine = core::runtime::is_wine();
 
     const std::array<ExportDefinition, kHookCount> exports{
         export_definition(ModuleSlot::winsock, "connect", &winsock::connection::connect_socket),
@@ -93,12 +103,14 @@ bool resolve_specs(std::span<hooking::detour::Spec, kHookCount> specs,
         void* target = reinterpret_cast<void*>(GetProcAddress(module, definition.name));
         names[index] = definition.name;
 
-        if (target == nullptr && is_wine) {
-            const std::string_view funcName(definition.name);
-            if (funcName == "WSAConnectByList") {
-                target = reinterpret_cast<void*>(&Dummy_WSAConnectByList);
-            } else if (funcName == "GetAddrInfoExA") {
-                target = reinterpret_cast<void*>(&Dummy_GetAddrInfoExA);
+        // Wine does not export every name Windows does. A missing one still needs a target, or
+        // the guard would leave that call unowned.
+        if (target == nullptr && underWine) {
+            const std::string_view exportName(definition.name);
+            if (exportName == "WSAConnectByList") {
+                target = reinterpret_cast<void*>(&absent_connect_by_list);
+            } else if (exportName == "GetAddrInfoExA") {
+                target = reinterpret_cast<void*>(&absent_address_info_ex_a);
             }
         }
 
