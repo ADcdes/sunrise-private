@@ -84,6 +84,28 @@ void report_detail_count(std::size_t requested, std::size_t built) noexcept {
     }
 }
 
+/** Reports the item index-table walk and every entry it could not read. */
+void report_row_count(std::size_t walked,
+                      std::size_t rows,
+                      std::size_t skipped,
+                      bool truncated) noexcept {
+    std::array<char, 128> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=pkg stage=rows result=ok walked=%zu rows=%zu "
+                                      "skipped=%zu truncated=%u",
+                                      walked,
+                                      rows,
+                                      skipped,
+                                      static_cast<unsigned>(truncated));
+    if (written > 0) {
+        core::log::write(core::log::Channel::client,
+                         skipped == 0 && !truncated ? core::log::Level::info
+                                                    : core::log::Level::warn,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+}
+
 /** Reports the bounded exact ordinary-socket relation extracted from the installed packages. */
 void report_socket_plug_count(std::size_t rules,
                               std::size_t pools,

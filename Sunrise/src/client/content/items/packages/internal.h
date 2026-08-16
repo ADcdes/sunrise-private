@@ -272,6 +272,18 @@ void report_ability_failure(const char* stage,
 /** Reports requested, retained, and skipped detail closure rows. */
 void report_detail_count(std::size_t requested, std::size_t built) noexcept;
 
+/**
+ * Reports the item index-table walk, including rows the pass could not read.
+ * @param walked Table entries the pass visited.
+ * @param rows Readable rows it retained.
+ * @param skipped Entries omitted because their index row or definition was malformed.
+ * @param truncated True when the walk stopped early because the row storage filled.
+ */
+void report_row_count(std::size_t walked,
+                      std::size_t rows,
+                      std::size_t skipped,
+                      bool truncated) noexcept;
+
 /** Reports the exact socket-rule, deduplicated-pool, member, and skipped-lane counts. */
 void report_socket_plug_count(std::size_t rules,
                               std::size_t pools,

@@ -62,11 +62,14 @@ bool build_item_rows(const reader::Source& source,
     storage.detailRequests.reset();
     storage.specialPlugCategories.fill(0);
     std::size_t detailCount = 0;
-    for (std::uint64_t index = 0; needRows && index < table.count && rowCount < storage.rows.size();
-         ++index) {
+    // One malformed entry is omitted on its own so the rest of the table still publishes. An
+    // entry can fail either at its index row or at the definition the row points to, and neither
+    // says anything about the entries that follow it.
+    std::uint64_t index = 0;
+    for (; needRows && index < table.count && rowCount < storage.rows.size(); ++index) {
         tables::IndexRow row{};
         if (!tables::index_row(container, table, index, row)) {
-            break;
+            continue;
         }
         tables::items::Row item{};
         item.definitionHash = row.definitionHash;
@@ -93,6 +96,9 @@ bool build_item_rows(const reader::Source& source,
     }
     bool requestsFit = true;
     if (needRows) {
+        // Every walked entry either published a row or was skipped, so the count of one
+        // follows from the other rather than being tracked alongside them.
+        report_row_count(index, rowCount, index - rowCount, index < table.count);
         requestsFit = publish_buckets(storage)
                       && (!needDetailRows
                           || materialize_requests(
