@@ -3,6 +3,12 @@
 #include "../parser.h"
 
 namespace sunrise::core::settings::parser {
+namespace {
+
+/** DXGI accepts sync intervals from immediate presentation through every fourth refresh. */
+constexpr std::uint64_t kMaximumVerticalSyncInterval = 4;
+
+} // namespace
 
 /** Parses screen and renderer settings under stable Sunrise-owned names. */
 bool Parser::display_settings(state::account::settings::Display& output) noexcept {
@@ -20,6 +26,8 @@ bool Parser::display_settings(state::account::settings::Display& output) noexcep
         return false;
     }
     std::bitset<static_cast<std::size_t>(Field::count)> supplied;
+    bool hasVerticalSyncInterval = false;
+    bool hasFieldOfView = false;
     const auto mark = [&supplied](Field field) noexcept {
         const std::size_t index = static_cast<std::size_t>(field);
         if (supplied.test(index)) {
@@ -48,6 +56,19 @@ bool Parser::display_settings(state::account::settings::Display& output) noexcep
             if (!mark(Field::hdrMode) || !signed_byte(output.hdrMode)) {
                 return false;
             }
+        } else if (key == "vertical_sync_interval") {
+            std::uint64_t value = 0;
+            if (hasVerticalSyncInterval || !unsigned_integer(value)
+                || value > kMaximumVerticalSyncInterval) {
+                return false;
+            }
+            output.verticalSyncInterval = static_cast<std::uint8_t>(value);
+            hasVerticalSyncInterval = true;
+        } else if (key == "field_of_view") {
+            if (hasFieldOfView || !signed_32(output.fieldOfView)) {
+                return false;
+            }
+            hasFieldOfView = true;
         } else if (key == "calibration_primary") {
             if (!mark(Field::calibrationPrimary) || !floating_point(output.calibrationPrimary)) {
                 return false;
