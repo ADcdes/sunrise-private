@@ -380,26 +380,33 @@ void mutate_socket_plug(const middleware::web_service::Message& message,
 /** Parses and prepares one character-location opcode-1901 socket selection. */
 void mutate_equipped_socket_plug(const middleware::web_service::Message& message,
                                  Outcome& outcome) noexcept {
-    middleware::web_service::messages::opcode1901::Request request{};
-    if (!middleware::web_service::messages::opcode1901::parse_request(message, request)
-        || request.canonicalSocketKind != request.socketIndex
-        || request.modelSocketKind != kEquippedShaderModelSocketKind || request.auxiliary != 0
-        || request.socketIndex >= state::account::inventory::kPlugCapacity
+    namespace opcode1901 = middleware::web_service::messages::opcode1901;
+    opcode1901::Request request{};
+    const bool parsed = opcode1901::parse_request(message, request);
+    // A request prepares at most one State mutation, so a run naming several sockets cannot be
+    // applied as the one transaction it has to be. It is understood and declined rather than
+    // treated as malformed, and the reply now carries that refusal.
+    const opcode1901::Replacement& replacement = request.replacements.front();
+    if (!parsed || request.replacementCount != 1
+        || replacement.modelSocketKind != kEquippedShaderModelSocketKind
+        || replacement.auxiliary != 0
+        || replacement.socketIndex >= state::account::inventory::kPlugCapacity
         || request.instanceIdentityToken == 0) {
         std::array<char, 256> line{};
         const int count = std::snprintf(
             line.data(),
             line.size(),
-            "ev=ws1901 stage=parse result=fail transaction=%u payload_bytes=%zu "
+            "ev=ws1901 stage=parse result=fail transaction=%u payload_bytes=%zu replacements=%zu "
             "plug_definition=%u canonical_kind=%u model_kind=%u socket=%u auxiliary=0x%llX "
             "equipment_selector=%llu",
             static_cast<unsigned>(message.transactionId),
             message.payload.size(),
-            static_cast<unsigned>(request.plugDefinitionIndex),
-            static_cast<unsigned>(request.canonicalSocketKind),
-            static_cast<unsigned>(request.modelSocketKind),
-            request.socketIndex,
-            static_cast<unsigned long long>(request.auxiliary),
+            request.replacementCount,
+            static_cast<unsigned>(replacement.plugDefinitionIndex),
+            static_cast<unsigned>(replacement.canonicalSocketKind),
+            static_cast<unsigned>(replacement.modelSocketKind),
+            replacement.socketIndex,
+            static_cast<unsigned long long>(replacement.auxiliary),
             static_cast<unsigned long long>(request.equipmentSelector));
         if (count > 0) {
             core::log::write(core::log::Channel::server,
@@ -413,8 +420,8 @@ void mutate_equipped_socket_plug(const middleware::web_service::Message& message
     state::PendingSocketPlug mutation{};
     if (!state::prepare_character_selector_socket_plug(
             request.instanceIdentityToken,
-            static_cast<std::uint8_t>(request.socketIndex),
-            request.plugDefinitionIndex,
+            static_cast<std::uint8_t>(replacement.socketIndex),
+            replacement.plugDefinitionIndex,
             mutation)) {
         std::array<char, 224> line{};
         const int count = std::snprintf(
@@ -426,11 +433,11 @@ void mutate_equipped_socket_plug(const middleware::web_service::Message& message
             static_cast<unsigned>(message.transactionId),
             static_cast<unsigned long long>(request.equipmentSelector),
             static_cast<unsigned long long>(identityToken),
-            request.socketIndex,
-            static_cast<unsigned>(request.plugDefinitionIndex),
-            static_cast<unsigned>(request.canonicalSocketKind),
-            static_cast<unsigned>(request.modelSocketKind),
-            static_cast<unsigned long long>(request.auxiliary));
+            replacement.socketIndex,
+            static_cast<unsigned>(replacement.plugDefinitionIndex),
+            static_cast<unsigned>(replacement.canonicalSocketKind),
+            static_cast<unsigned>(replacement.modelSocketKind),
+            static_cast<unsigned long long>(replacement.auxiliary));
         if (count > 0) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
@@ -458,9 +465,9 @@ void mutate_equipped_socket_plug(const middleware::web_service::Message& message
         static_cast<unsigned>(mutation.socketLane),
         static_cast<unsigned>(mutation.plugDefinitionIndex),
         static_cast<unsigned>(mutation.plugBucketId),
-        static_cast<unsigned>(request.canonicalSocketKind),
-        static_cast<unsigned>(request.modelSocketKind),
-        static_cast<unsigned long long>(request.auxiliary));
+        static_cast<unsigned>(replacement.canonicalSocketKind),
+        static_cast<unsigned>(replacement.modelSocketKind),
+        static_cast<unsigned long long>(replacement.auxiliary));
     if (count > 0) {
         core::log::write(core::log::Channel::server,
                          core::log::Level::info,

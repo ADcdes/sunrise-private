@@ -6,12 +6,10 @@
 namespace sunrise::middleware::web_service::messages::opcode1901 {
 namespace {
 
-/** The reflected opcode-1901 request occupies exactly 192 bits. */
-constexpr std::size_t kPayloadSize = 24;
-/** The native fixed replacement array reserves twelve entries, so its count uses four bits. */
+/** The native replacement array reserves twelve entries, so its count uses four bits. */
 constexpr std::uint8_t kReplacementCountWidth = 4;
-/** This codec supports the single replacement emitted by one shader Apply action. */
-constexpr std::uint64_t kCanonicalReplacementCount = 1;
+/** A payload is whole bytes, so at most this many bits of it can be trailing pad. */
+constexpr std::size_t kBitsPerByte = 8;
 /** Signed native definition indices use one presence bit followed by fifteen value bits. */
 constexpr std::uint8_t kDefinitionIndexWidth = 15;
 /** The canonical socket-kind byte is signed and biased from INT8_MIN. */
@@ -45,38 +43,69 @@ bool identifies_instance(std::uint64_t instanceIdentityToken,
            && (instanceSoid & kInstanceIdentityMask) == instanceIdentityToken;
 }
 
-/** Parses the complete native equipped shader socket-action descriptor. */
+/** Parses the complete native equipped socket-action descriptor, batch or single. */
 bool parse_request(const Message& message, Request& request) noexcept {
     request = {};
-    if (message.opcode != kOpcode || message.payload.size() != kPayloadSize) {
+    if (message.opcode != kOpcode) {
         return false;
     }
 
     encoding::bits::Reader reader(message.payload);
     std::uint64_t replacementCount = 0;
-    std::uint64_t plugDefinitionPresent = 0;
-    std::uint64_t encodedPlugDefinition = 0;
-    std::uint64_t encodedCanonicalSocketKind = 0;
-    std::uint64_t modelSocketKind = 0;
-    std::uint64_t encodedSocketIndex = 0;
-    std::uint64_t auxiliaryPresent = 0;
+    if (!reader.read(kReplacementCountWidth, replacementCount) || replacementCount == 0
+        || replacementCount > kReplacementCapacity) {
+        return false;
+    }
+
+    // The run is counted rather than fixed, so its width follows the count. Reading exactly that
+    // many and then requiring the payload to be spent is what proves the descriptor's length.
+    for (std::uint64_t index = 0; index < replacementCount; ++index) {
+        std::uint64_t plugDefinitionPresent = 0;
+        std::uint64_t encodedPlugDefinition = 0;
+        std::uint64_t encodedCanonicalSocketKind = 0;
+        std::uint64_t modelSocketKind = 0;
+        std::uint64_t encodedSocketIndex = 0;
+        std::uint64_t auxiliaryPresent = 0;
+        std::uint64_t auxiliary = 0;
+        if (!reader.read(1, plugDefinitionPresent)
+            || !reader.read(kDefinitionIndexWidth, encodedPlugDefinition)
+            || !reader.read(kCanonicalSocketKindWidth, encodedCanonicalSocketKind)
+            || !reader.read(kModelSocketKindWidth, modelSocketKind)
+            || !reader.read(kSocketIndexWidth, encodedSocketIndex)
+            || !reader.read(1, auxiliaryPresent) || !reader.read(kOptionalIdentityWidth, auxiliary)
+            || plugDefinitionPresent == 0 || auxiliaryPresent == 0
+            || encodedCanonicalSocketKind < kCanonicalSocketKindBias
+            || modelSocketKind < kModelSocketKindBias || encodedSocketIndex < kSocketIndexBias
+            || modelSocketKind - kModelSocketKindBias != kShaderModelSocketKind
+            || auxiliary != kShaderAuxiliary) {
+            request = {};
+            return false;
+        }
+        Replacement& replacement = request.replacements[static_cast<std::size_t>(index)];
+        replacement.plugDefinitionIndex = static_cast<std::uint16_t>(encodedPlugDefinition);
+        replacement.canonicalSocketKind =
+            static_cast<std::uint8_t>(encodedCanonicalSocketKind - kCanonicalSocketKindBias);
+        replacement.modelSocketKind =
+            static_cast<std::uint8_t>(modelSocketKind - kModelSocketKindBias);
+        replacement.socketIndex = static_cast<std::uint32_t>(encodedSocketIndex - kSocketIndexBias);
+        replacement.auxiliary = auxiliary;
+        if (replacement.canonicalSocketKind != replacement.socketIndex) {
+            request = {};
+            return false;
+        }
+    }
+    request.replacementCount = static_cast<std::size_t>(replacementCount);
+
+    // A replacement is 123 bits, so only a single one leaves the payload byte aligned. Every
+    // other count ends mid-byte and the descriptor pads out to the next boundary, which is why
+    // the payload has to be spent to within a byte rather than exactly.
     std::uint64_t equipmentSelectorPresent = 0;
-    if (!reader.read(kReplacementCountWidth, replacementCount)
-        || !reader.read(1, plugDefinitionPresent)
-        || !reader.read(kDefinitionIndexWidth, encodedPlugDefinition)
-        || !reader.read(kCanonicalSocketKindWidth, encodedCanonicalSocketKind)
-        || !reader.read(kModelSocketKindWidth, modelSocketKind)
-        || !reader.read(kSocketIndexWidth, encodedSocketIndex) || !reader.read(1, auxiliaryPresent)
-        || !reader.read(kOptionalIdentityWidth, request.auxiliary)
-        || !reader.read(1, equipmentSelectorPresent)
+    if (!reader.read(1, equipmentSelectorPresent)
         || !reader.read(kOptionalIdentityWidth, request.equipmentSelector)
-        || reader.remaining_bits() != 0 || replacementCount != kCanonicalReplacementCount
-        || plugDefinitionPresent == 0 || auxiliaryPresent == 0 || equipmentSelectorPresent == 0
-        || encodedCanonicalSocketKind < kCanonicalSocketKindBias
-        || modelSocketKind < kModelSocketKindBias || encodedSocketIndex < kSocketIndexBias
-        || modelSocketKind - kModelSocketKindBias != kShaderModelSocketKind
-        || request.auxiliary != kShaderAuxiliary) {
+        || reader.remaining_bits() >= kBitsPerByte || equipmentSelectorPresent == 0) {
+        const std::uint64_t selector = request.equipmentSelector;
         request = {};
+        request.equipmentSelector = selector;
         return false;
     }
 
@@ -90,13 +119,7 @@ bool parse_request(const Message& message, Request& request) noexcept {
         return false;
     }
     request.instanceIdentityToken = request.equipmentSelector / kSelectorStride;
-
-    request.plugDefinitionIndex = static_cast<std::uint16_t>(encodedPlugDefinition);
-    request.canonicalSocketKind =
-        static_cast<std::uint8_t>(encodedCanonicalSocketKind - kCanonicalSocketKindBias);
-    request.modelSocketKind = static_cast<std::uint8_t>(modelSocketKind - kModelSocketKindBias);
-    request.socketIndex = static_cast<std::uint32_t>(encodedSocketIndex - kSocketIndexBias);
-    return request.canonicalSocketKind == request.socketIndex;
+    return true;
 }
 
 } // namespace sunrise::middleware::web_service::messages::opcode1901
