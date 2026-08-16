@@ -543,6 +543,8 @@ bool prepare_item_dismantle(Scratch& scratch,
             return report_failure("dismantle_account_change_state");
         }
 
+        // Kind 1 is the ordinary acquisition path, and clear policy bits leave it enabled. The
+        // native observer skips a record with any other pair.
         constexpr std::uint8_t kRewardChangeKind = 1;
         constexpr std::uint16_t kRewardChangeFlags = 0;
         for (std::size_t rewardIndex = 0; rewardIndex < mutation.rewardCount; ++rewardIndex) {

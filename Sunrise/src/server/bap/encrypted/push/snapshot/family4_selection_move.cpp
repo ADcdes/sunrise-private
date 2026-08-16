@@ -30,6 +30,7 @@ void report_equipment_object(const queuez::EquipmentSwap& swap,
                              const state::PendingEquipmentSwap& mutation,
                              const Resolved& selected,
                              const family4_datagen::character::layout::Object& object) noexcept {
+    // Row sentinel for the log line only. Zero is a real row, so it cannot stand for "not found".
     constexpr std::size_t kMissing = (std::numeric_limits<std::size_t>::max)();
     std::size_t requestedRow = kMissing;
     std::size_t previousRow = kMissing;

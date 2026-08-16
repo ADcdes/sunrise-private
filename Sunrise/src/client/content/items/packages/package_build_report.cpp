@@ -47,6 +47,7 @@ void report_ability_failure(const char* stage,
                             std::size_t character,
                             std::size_t first,
                             std::size_t second) noexcept {
+    // Extraction retries on every boot pass, so the count is capped to keep one failure readable.
     constexpr std::size_t kReportLimit = 12;
     if (g_abilityFailureReports.fetch_add(1, std::memory_order_relaxed) >= kReportLimit) {
         return;

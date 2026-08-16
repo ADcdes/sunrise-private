@@ -205,6 +205,7 @@ same_profile_inventory(const AccountState& account,
     if (account.profileItemCount > account.profileItems.size()) {
         return false;
     }
+    // The bucket identity is one byte on the wire, so 256 covers every value one can carry.
     constexpr std::size_t kBucketIdentityCapacity = 256;
     std::array<std::uint16_t, kBucketIdentityCapacity> taken{};
     std::array<bool, inventory_buckets::kProfileSlotCapacity> occupied{};
@@ -888,6 +889,7 @@ finalize_equipment_transition(const AccountState& account,
         }
     }
 
+    // The serial is signed on the wire, so it must stay inside the positive int32 range.
     constexpr std::uint32_t kMaximumInventorySerial =
         static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)());
     if (movedItemCount == 0 || after.nextInventorySerial > kMaximumInventorySerial
@@ -1349,6 +1351,8 @@ character_item_at(CharacterState& character, const CharacterItemLocation& locati
                                     std::uint32_t flags,
                                     PendingItemState& mutation) noexcept {
     mutation = {};
+    // Bits 0 and 1 are the two states the client sends. Any other bit is a request we cannot
+    // honour.
     constexpr std::uint32_t kSupportedItemStateMask = 0x3U;
     if (!account::valid(snapshot) || characterIndex >= snapshot.characterCount
         || targetInstanceSoid == 0 || (flags & ~kSupportedItemStateMask) != 0) {
@@ -1763,6 +1767,7 @@ apply_dismantle_rewards(const AccountState& before,
         movedItemCount += static_cast<std::size_t>(beforeRow != afterRow);
     }
 
+    // The serial is signed on the wire, so it must stay inside the positive int32 range.
     constexpr std::uint32_t kMaximumInventorySerial =
         static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)());
     if (after.nextInventorySerial > kMaximumInventorySerial

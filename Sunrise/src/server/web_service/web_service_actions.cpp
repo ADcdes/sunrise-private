@@ -21,8 +21,11 @@ namespace sunrise::server::web_service {
 
 namespace {
 
+/** Socket kind the shader model occupies, which is the only kind a shader swap may target. */
 constexpr std::uint8_t kEquippedShaderModelSocketKind = 0;
+/** Index stored when no definition resolves. The catalog is u16-indexed, so this cannot be one. */
 constexpr std::uint32_t kUnavailableDefinitionIndex = (std::numeric_limits<std::uint16_t>::max)();
+
 } // namespace
 
 /** Logs one exact correlated equipment response after its Queuez update is staged. */
@@ -41,16 +44,8 @@ void report_equip_response(const middleware::web_service::Message& message,
     if (prefix <= 0 || static_cast<std::size_t>(prefix) >= line.size()) {
         return;
     }
-    constexpr char kHex[] = "0123456789ABCDEF";
     std::size_t length = static_cast<std::size_t>(prefix);
-    for (const std::byte byte : response) {
-        if (length + 2 >= line.size()) {
-            break;
-        }
-        const unsigned value = std::to_integer<unsigned>(byte);
-        line[length++] = kHex[(value >> 4U) & 0xFU];
-        line[length++] = kHex[value & 0xFU];
-    }
+    (void)core::log::append_hex(line, length, response);
     core::log::write(core::log::Channel::server, core::log::Level::debug, {line.data(), length});
 }
 
@@ -73,16 +68,8 @@ void report_item_acquisition_response(const middleware::web_service::Message& me
     if (prefix <= 0 || static_cast<std::size_t>(prefix) >= line.size()) {
         return;
     }
-    constexpr char kHex[] = "0123456789ABCDEF";
     std::size_t length = static_cast<std::size_t>(prefix);
-    for (const std::byte byte : response) {
-        if (length + 2 >= line.size()) {
-            break;
-        }
-        const unsigned value = std::to_integer<unsigned>(byte);
-        line[length++] = kHex[(value >> 4U) & 0xFU];
-        line[length++] = kHex[value & 0xFU];
-    }
+    (void)core::log::append_hex(line, length, response);
     core::log::write(core::log::Channel::server, core::log::Level::debug, {line.data(), length});
 }
 
@@ -107,16 +94,8 @@ void report_profile_item_acquisition_response(const middleware::web_service::Mes
     if (prefix <= 0 || static_cast<std::size_t>(prefix) >= line.size()) {
         return;
     }
-    constexpr char kHex[] = "0123456789ABCDEF";
     std::size_t length = static_cast<std::size_t>(prefix);
-    for (const std::byte byte : response) {
-        if (length + 2 >= line.size()) {
-            break;
-        }
-        const unsigned value = std::to_integer<unsigned>(byte);
-        line[length++] = kHex[(value >> 4U) & 0xFU];
-        line[length++] = kHex[value & 0xFU];
-    }
+    (void)core::log::append_hex(line, length, response);
     core::log::write(core::log::Channel::server, core::log::Level::debug, {line.data(), length});
 }
 
@@ -139,16 +118,8 @@ void report_item_dismantle_response(const middleware::web_service::Message& mess
     if (prefix <= 0 || static_cast<std::size_t>(prefix) >= line.size()) {
         return;
     }
-    constexpr char kHex[] = "0123456789ABCDEF";
     std::size_t length = static_cast<std::size_t>(prefix);
-    for (const std::byte byte : response) {
-        if (length + 2 >= line.size()) {
-            break;
-        }
-        const unsigned value = std::to_integer<unsigned>(byte);
-        line[length++] = kHex[(value >> 4U) & 0xFU];
-        line[length++] = kHex[value & 0xFU];
-    }
+    (void)core::log::append_hex(line, length, response);
     core::log::write(core::log::Channel::server, core::log::Level::debug, {line.data(), length});
 }
 
@@ -175,16 +146,8 @@ void report_socket_plug_response(const middleware::web_service::Message& message
     if (prefix <= 0 || static_cast<std::size_t>(prefix) >= line.size()) {
         return;
     }
-    constexpr char kHex[] = "0123456789ABCDEF";
     std::size_t length = static_cast<std::size_t>(prefix);
-    for (const std::byte byte : response) {
-        if (length + 2 >= line.size()) {
-            break;
-        }
-        const unsigned value = std::to_integer<unsigned>(byte);
-        line[length++] = kHex[(value >> 4U) & 0xFU];
-        line[length++] = kHex[value & 0xFU];
-    }
+    (void)core::log::append_hex(line, length, response);
     core::log::write(core::log::Channel::server, core::log::Level::debug, {line.data(), length});
 }
 
@@ -568,6 +531,7 @@ void dismantle_item(const middleware::web_service::Message& message, Outcome& ou
     }
     const std::uint64_t instanceSoid = request.instanceSoid;
     const std::uint16_t definitionIndex = request.definitionIndex;
+    // The codec owns the value; this alias keeps the dismantle checks below readable.
     constexpr std::uint32_t kSingleQuantity =
         middleware::web_service::messages::opcode402::kSingleQuantity;
 

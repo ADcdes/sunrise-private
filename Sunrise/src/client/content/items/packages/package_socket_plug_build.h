@@ -53,7 +53,9 @@ private:
         std::uint32_t poolIndex{UINT32_MAX};
     };
 
+    /** A plug set names three categories: reusable, randomized, and the socket's own default. */
     static constexpr std::size_t kCategoryCount = 3;
+    /** Power-of-two open-addressed table, sized so the largest package's pools stay sparse. */
     static constexpr std::size_t kLookupCapacity = 1U << 19U;
 
     std::vector<socket_plugs::Rule> rules_{};

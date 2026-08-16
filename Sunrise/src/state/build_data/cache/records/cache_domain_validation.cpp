@@ -67,6 +67,13 @@ namespace {
     return left.bucketId < right.bucketId;
 }
 
+/** @return Item then lane order, which is the order the rules are published in. */
+[[nodiscard]] bool socket_plug_rule_less(const items::socket_plugs::Rule& left,
+                                         const items::socket_plugs::Rule& right) noexcept {
+    return left.itemDefinitionIndex < right.itemDefinitionIndex
+           || (left.itemDefinitionIndex == right.itemDefinitionIndex && left.lane < right.lane);
+}
+
 /** @return Native definition-index order for item rows. */
 [[nodiscard]] bool item_less(const items::Definition& left,
                              const items::Definition& right) noexcept {
@@ -173,13 +180,7 @@ bool canonicalize(MutableDomains domains, const DomainCounts& counts) noexcept {
     std::sort(itemDetails.begin(), itemDetails.end(), detail_less);
     // Rules are published in exact item/lane order. Pools and members are an indexed relation,
     // so reordering either would invalidate every pool reference and range.
-    if (!std::is_sorted(socketPlugRules.begin(),
-                        socketPlugRules.end(),
-                        [](const auto& left, const auto& right) {
-                            return left.itemDefinitionIndex < right.itemDefinitionIndex
-                                   || (left.itemDefinitionIndex == right.itemDefinitionIndex
-                                       && left.lane < right.lane);
-                        })) {
+    if (!std::is_sorted(socketPlugRules.begin(), socketPlugRules.end(), socket_plug_rule_less)) {
         return false;
     }
     std::sort(inventoryBuckets.begin(), inventoryBuckets.end(), bucket_less);

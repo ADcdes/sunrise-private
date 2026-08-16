@@ -1,5 +1,6 @@
 #include "web_service_runtime.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdio>
@@ -32,6 +33,8 @@ namespace sunrise::server::web_service {
 constexpr std::size_t kOpcodeLineCapacity = 64;
 /** A request trace keeps enough payload to identify an item-action descriptor. */
 constexpr std::size_t kRequestPayloadTraceBytes = 192;
+/** Marks a trace that stopped at the cap, so a short hex string is not read as a short payload. */
+constexpr std::string_view kTruncated = " truncated=1";
 /** Web Service opcode used by the Character screen's Equip action. */
 constexpr std::uint16_t kEquipOpcode = 403;
 /** Web Service opcode used by the Character screen's Unequip action. */
@@ -69,22 +72,13 @@ void report_request(const middleware::web_service::Message& message) noexcept {
         return;
     }
 
-    constexpr char kHex[] = "0123456789ABCDEF";
     std::size_t length = static_cast<std::size_t>(prefix);
-    const std::size_t traced = message.payload.size() < kRequestPayloadTraceBytes
-                                   ? message.payload.size()
-                                   : kRequestPayloadTraceBytes;
-    for (std::size_t index = 0; index < traced && length + 2 < line.size(); ++index) {
-        const unsigned value = std::to_integer<unsigned>(message.payload[index]);
-        line[length++] = kHex[(value >> 4U) & 0xFU];
-        line[length++] = kHex[value & 0xFU];
-    }
-    if (traced != message.payload.size()) {
-        constexpr std::string_view kTruncated = " truncated=1";
-        if (length + kTruncated.size() < line.size()) {
-            std::memcpy(line.data() + length, kTruncated.data(), kTruncated.size());
-            length += kTruncated.size();
-        }
+    const std::size_t traced =
+        (std::min)(message.payload.size(), static_cast<std::size_t>(kRequestPayloadTraceBytes));
+    (void)core::log::append_hex(line, length, message.payload.first(traced));
+    if (traced != message.payload.size() && length + kTruncated.size() < line.size()) {
+        std::memcpy(line.data() + length, kTruncated.data(), kTruncated.size());
+        length += kTruncated.size();
     }
     if (length != 0) {
         core::log::write(core::log::Channel::server, core::log::Level::info, {line.data(), length});
