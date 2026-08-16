@@ -9,6 +9,7 @@
 #include "activity_transaction/activity_transaction_notifications.h"
 #include "bap_connection_publication.h"
 #include "internal.h"
+#include "push/activity/activity_roster_push.h"
 #include "queuez/queuez_outcome_staging.h"
 #include "transactions/service_outcome_commit.h"
 
@@ -146,15 +147,18 @@ bool consume(Session& session,
     }
     if (handled && outcome.hasActivityTransaction) {
         const auto& activityPlan = outcome.activityPlan;
-        handled = route.responseMode == ResponseMode::uncorrelatedPush
-                  && activity_transaction::stage_notifications(session,
-                                                               scratch,
-                                                               activityPlan,
-                                                               bapState.sessionKey,
-                                                               nextSendNonce,
-                                                               scratch.framed,
-                                                               framedSize);
+        handled = route.responseMode == ResponseMode::uncorrelatedPush;
         if (!handled) {
+            diagnostics::report_failure(frame.messageId, "route");
+        } else if (!activity_transaction::stage_notifications(session,
+                                                              scratch,
+                                                              activityPlan,
+                                                              bapState.sessionKey,
+                                                              nextSendNonce,
+                                                              scratch.framed,
+                                                              framedSize)) {
+            // The transaction still commits. A push that cannot be built is one lost message, and
+            // dropping the commit with it would strand the client's reported state for the session.
             diagnostics::report_failure(frame.messageId, "notify");
         }
     }
@@ -177,7 +181,13 @@ bool consume(Session& session,
             }
             arm_repushes(session, queuezPublication);
             publish_connection_fields(session, publication, connection);
+            // The caller copy is done, so what the staged roster body owes is settled here.
+            push::activity::commit_staged_roster(session);
         }
+    }
+    if (!handled) {
+        // The staged body is dropped, so its grant and its state byte go back for the next push.
+        push::activity::discard_staged_roster(session);
     }
     clear_prefix(scratch.plaintext, plaintextSize);
     clear_prefix(scratch.responseBody, responseBodySize);

@@ -1,3 +1,6 @@
+#include <algorithm>
+#include <array>
+
 #include "../../state/activity/defaults/activity_defaults_validation.h"
 #include "parser.h"
 
@@ -92,6 +95,51 @@ bool Parser::objective_values(std::span<std::int32_t> bank) noexcept {
 }
 
 /**
+ * Fills one progression bank from [definition_index, lane 0, lane 1, lane 2] rows.
+ * Repeated rows for one definition merge by lane maximum, not by last write. The Client's
+ * own definition-indexed bank merges the same way.
+ * @param bank Authored lanes addressed by definition index.
+ * @return True when every row names a possible definition and carries all 3 lanes.
+ */
+bool Parser::progression_values(state::unlocks::ProgressionBank& bank) noexcept {
+    std::array<bool, state::build_data::progressions::kDefinitionCapacity> authored{};
+    if (!consume('[')) {
+        return false;
+    }
+    if (consume(']')) {
+        return true;
+    }
+    for (;;) {
+        std::uint64_t index = 0;
+        state::unlocks::ProgressionLanes lanes{};
+        if (!consume('[') || !unsigned_integer(index) || index >= bank.size()) {
+            return false;
+        }
+        for (std::int32_t& lane : lanes) {
+            if (!consume(',') || !signed_32(lane)) {
+                return false;
+            }
+        }
+        if (!consume(']')) {
+            return false;
+        }
+        const auto slot = static_cast<std::size_t>(index);
+        state::unlocks::ProgressionLanes& row = bank[slot];
+        for (std::size_t lane = 0; lane < row.size(); ++lane) {
+            // The first row of a definition is taken whole, so a negative lane is not clamped.
+            row[lane] = authored[slot] ? (std::max)(row[lane], lanes[lane]) : lanes[lane];
+        }
+        authored[slot] = true;
+        if (consume(']')) {
+            return true;
+        }
+        if (!consume(',')) {
+            return false;
+        }
+    }
+}
+
+/**
  * Parses the four authored unlock banks.
  * @param output Receives every expanded bank.
  * @return True when the object is valid JSON and every entry fits its bank.
@@ -122,6 +170,10 @@ bool Parser::unlocks(state::unlocks::Table& output) noexcept {
             parsed = flag_runs(output.characterObjectFlags);
         } else if (key == "character_objective_values") {
             parsed = objective_values(output.characterObjectValues);
+        } else if (key == "account_progressions") {
+            parsed = progression_values(output.accountProgressions);
+        } else if (key == "character_progressions") {
+            parsed = progression_values(output.characterProgressions);
         } else {
             parsed = skip_value(0);
         }

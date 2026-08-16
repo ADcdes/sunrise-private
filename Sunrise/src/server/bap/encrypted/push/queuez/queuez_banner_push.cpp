@@ -57,12 +57,13 @@ bool append_banner_notification(Scratch& scratch,
                                 std::size_t& written,
                                 queuez::SessionState& after) noexcept {
     after = before;
-    // The pair names one character, so with none selected there is nothing to publish yet and the
-    // first pick delivers it. That is an ordinary boot state, not a failure.
-    if (state::account::selected_character_soid(state::account_snapshot()) == 0) {
+    // The pair names the first character when none is picked yet. The client's family-zero record
+    // accepts a snapshot for about ten seconds, then clears the family and refuses every later
+    // one, so holding the pair for the pick spends that window and the subscription times out.
+    if (state::account::banner_character_soid(state::account_snapshot()) == 0) {
         core::log::write(core::log::Channel::server,
                          core::log::Level::info,
-                         "ev=queuez stage=banner result=skip reason=unselected");
+                         "ev=queuez stage=banner result=skip reason=nocharacter");
         return false;
     }
     snapshot::Prepared prepared{};
@@ -93,7 +94,7 @@ bool append_banner_notification(Scratch& scratch,
     // The Client now holds this pair, so the ladder owns it. Without this an unsubscribe leaves
     // family zero unrecorded and the next pick has no previous record to release.
     const std::uint64_t delivered =
-        state::account::selected_character_soid(state::account_snapshot());
+        state::account::banner_character_soid(state::account_snapshot());
     if (!after.family0Active && delivered != 0) {
         after.family0Active = true;
         after.family0Character = delivered;

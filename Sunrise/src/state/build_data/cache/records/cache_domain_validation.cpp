@@ -12,6 +12,7 @@
 #include "../../scenarios/scenario_catalog.h"
 #include "../../socket_entry_lists/socket_entry_list_catalog.h"
 #include "../../spawn_sets/spawn_set_catalog.h"
+#include "../../vendors/vendor_catalog.h"
 #include "validation.h"
 
 namespace sunrise::state::build_data::cache::records {
@@ -121,7 +122,11 @@ template <typename Value, typename Less>
            && counts.rosterGroups <= domains.rosterGroups.size()
            && counts.spawnStems <= domains.spawnStems.size()
            && counts.spawnNameHashes <= domains.spawnNameHashes.size()
-           && counts.hashNames <= domains.hashNames.size();
+           && counts.hashNames <= domains.hashNames.size()
+           && counts.vendorIndex <= domains.vendorIndex.size()
+           && counts.vendorDefinitions <= domains.vendorDefinitions.size()
+           && counts.vendorSaleRows <= domains.vendorSaleRows.size()
+           && counts.vendorInstalledRows <= domains.vendorInstalledRows.size();
 }
 
 } // namespace
@@ -170,6 +175,15 @@ bool valid_domains(Domains domains) noexcept {
         || (domains.spawnStems.empty()
                 ? !domains.spawnNameHashes.empty()
                 : !spawn_sets::valid(domains.spawnStems, domains.spawnNameHashes))
+        // An empty catalog is complete. With no index there is no vendor domain, so the
+        // definitions and both row banks must be empty too.
+        || (domains.vendorIndex.empty()
+                ? !(domains.vendorDefinitions.empty() && domains.vendorSaleRows.empty()
+                    && domains.vendorInstalledRows.empty())
+                : !vendors::valid(domains.vendorIndex,
+                                  domains.vendorDefinitions,
+                                  domains.vendorSaleRows,
+                                  domains.vendorInstalledRows))
         || !hash_names::valid(domains.hashNames)) {
         return false;
     }

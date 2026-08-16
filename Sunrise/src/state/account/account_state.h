@@ -111,6 +111,15 @@ namespace account {
 
 [[nodiscard]] std::uint64_t selected_character_soid(const AccountState& state) noexcept;
 
+/**
+ * Reports the character the family-zero banner pair names.
+ * The pair is published before any pick. A refusal spends the family's only acceptance window,
+ * so it falls back to the first character.
+ * @param state Account snapshot read under the lock.
+ * @return The character's SOID, or zero when the account owns none.
+ */
+[[nodiscard]] std::uint64_t banner_character_soid(const AccountState& state) noexcept;
+
 } // namespace account
 
 } // namespace sunrise::state

@@ -4,6 +4,7 @@
 #include "../../../../../middleware/datagen/character_record/character_record_encoder.h"
 #include "../../../../../middleware/datagen/definitions.h"
 #include "../../../../../middleware/datagen/family4/loadout/loadout_resolver.h"
+#include "../../../../../state/account/account_state.h"
 #include "../../../../../state/equipment/light/resolution/configured_equipment_light_resolver.h"
 #include "../../../../../state/runtime/runtime.h"
 #include "internal.h"
@@ -30,14 +31,17 @@ bool prepare_banner(Scratch& scratch,
     if (reservation.rawWriteOffset > scratch.plaintext.size()) {
         return false;
     }
+    // The selected character, or the first one before any pick. The record accepts a snapshot only
+    // during the boot burst, so a refusal here costs the whole family for the run.
+    const std::uint64_t named = state::account::banner_character_soid(account);
     std::size_t selectedIndex = account.characterCount;
     for (std::size_t index = 0; index < account.characterCount; ++index) {
-        if (account.characters[index].selected) {
+        if (account.characters[index].soid == named) {
             selectedIndex = index;
             break;
         }
     }
-    if (selectedIndex == account.characterCount) {
+    if (named == 0 || selectedIndex == account.characterCount) {
         return false;
     }
 
@@ -107,11 +111,14 @@ bool prepare_banner(Scratch& scratch,
     ++objectCount;
     compressedExtent += compressedSize;
     staged.compressedClearSize = (std::max)(reservation.compressedClearSize, compressedExtent);
+    // Always a full snapshot, even when a release rides with it. The accept gate disarms the
+    // record's expiry timer before it tests this bit, so a body without it leaves a subscribed
+    // record stuck until it times out. The prune keeps this message's own headers, release too.
     staged.family = middleware::queuez::Family{
         middleware::datagen::kBannerFamily,
         familyRootSoid,
         version,
-        previousCharacter != 0 ? std::uint8_t{0} : middleware::queuez::kFullSnapshotFlag,
+        middleware::queuez::kFullSnapshotFlag,
         std::span(staged.objects).first(objectCount),
     };
     static_assert(kBannerUpsertCount == 2);

@@ -147,6 +147,7 @@ namespace push {
  * @param written Existing byte count, updated after each complete push is appended.
  * @param after Receives the queuez state published after caller output is copied.
  * @param armsRepush Receives whether the Family-4 companion needs its delayed second copy.
+ * @param armsBannerRepush Receives whether a family-zero body needs its delayed second copy.
  */
 void append_queuez_notification(Scratch& scratch,
                                 const queuez::SessionState& before,
@@ -156,7 +157,8 @@ void append_queuez_notification(Scratch& scratch,
                                 std::span<std::byte> response,
                                 std::size_t& written,
                                 queuez::SessionState& after,
-                                bool& armsRepush) noexcept;
+                                bool& armsRepush,
+                                bool& armsBannerRepush) noexcept;
 
 /**
  * Appends the family-zero banner pair as its own notification.

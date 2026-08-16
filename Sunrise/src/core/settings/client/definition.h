@@ -30,6 +30,12 @@ struct Settings {
      */
     bool forceJoinRequestReady{true};
     /**
+     * Reports a public region as private to the region transition.
+     * On, a public region loads solo. Off, it waits for a public activity host.
+     * That host is the only route to the citizen join and the gameplay channel.
+     */
+    bool regionPrivate{true};
+    /**
      * Pins the participation record to the replicated snapshot at `comp + 496`.
      * Off, the record is the local one at `comp + 1256`, whose spawn-gate byte no wire field
      * reaches.

@@ -15,6 +15,7 @@
 #include "../../progressions/definition.h"
 #include "../../scenarios/definition.h"
 #include "../../spawn_sets/definition.h"
+#include "../../vendors/definition.h"
 
 namespace sunrise::state::build_data::cache::records {
 
@@ -24,7 +25,7 @@ inline constexpr std::array<char, 8> kCacheMagic{'S', 'U', 'N', 'R', 'I', 'S', '
  * Current build-data cache format. An older cache is rebuilt rather than read, so a bump needs
  * no other edit. Bump it whenever a domain's stored shape changes.
  */
-inline constexpr std::uint32_t kCacheFormatVersion = 23;
+inline constexpr std::uint32_t kCacheFormatVersion = 24;
 /** Signed -1 on disk means there is no equipment slot. */
 inline constexpr std::int8_t kAbsentEquipmentSlot = -1;
 /** The standard 64-bit FNV-1a offset basis starts the payload checksum. */
@@ -73,6 +74,10 @@ struct Header {
     std::uint32_t spawnStemCount{};
     std::uint32_t spawnNameHashCount{};
     std::uint32_t hashNameCount{};
+    std::uint32_t vendorIndexCount{};
+    std::uint32_t vendorDefinitionCount{};
+    std::uint32_t vendorSaleRowCount{};
+    std::uint32_t vendorInstalledRowCount{};
     InvestmentConstants constants{};
     std::uint64_t payloadChecksum{};
 };
@@ -248,6 +253,64 @@ struct SpawnNameHashRecord {
     std::array<std::uint16_t, spawn_sets::kPackageCapacity> activityPackages{};
 };
 
+/** Disk form of one vendor index row. */
+struct VendorIndexRecord {
+    std::uint32_t definitionHash{};
+    std::uint32_t definitionTag{};
+    std::uint16_t index{};
+    /** Must be zero, so the packed vendor index row always matches. */
+    std::uint16_t reserved{};
+};
+
+/** Disk form of one extracted vendor definition and its flat-bank ranges. */
+struct VendorDefinitionRecord {
+    std::uint32_t definitionHash{};
+    std::uint32_t definitionTag{};
+    std::uint32_t definitionClass{};
+    std::uint32_t definitionSize{};
+    std::uint32_t installedRowBase{};
+    std::uint32_t installedRowClass{};
+    std::uint32_t saleRowBase{};
+    std::uint32_t saleRowClass{};
+    std::uint32_t thirdRowBase{};
+    std::uint32_t thirdRowClass{};
+    std::uint32_t saleRowOffset{};
+    std::uint32_t installedRowOffset{};
+    std::uint32_t resetIntervalRaw{};
+    std::uint32_t resetPhaseRaw{};
+    std::uint16_t index{};
+    std::uint16_t installedCount{};
+    std::uint16_t saleCount{};
+    std::uint16_t thirdCount{};
+};
+
+/** Disk form of one vendor sale row. Unnamed fields keep their raw value. */
+struct VendorSaleRowRecord {
+    std::uint16_t vendorIndex{};
+    std::uint16_t rowIndex{};
+    std::uint16_t itemIndex{};
+    std::uint16_t secondaryItemIndex{};
+    std::int32_t installedIndex{};
+    std::uint32_t raw104{};
+    std::uint32_t raw108{};
+    std::int32_t raw172{};
+    std::uint32_t expressionCount8{};
+    std::uint32_t nestedRecordCount{};
+    std::uint32_t expressionCount120{};
+    std::uint32_t count136{};
+    std::uint32_t expressionCount160{};
+    std::uint8_t featureBranch{};
+    /** Must be zero, so the packed sale row always matches. */
+    std::array<std::uint8_t, 3> reserved{};
+};
+
+/** Disk form of one vendor installed row, kept whole. */
+struct VendorInstalledRowRecord {
+    std::uint16_t vendorIndex{};
+    std::uint16_t rowIndex{};
+    std::array<std::uint8_t, vendors::kInstalledRowStride> raw{};
+};
+
 /** Disk form of one roster group object and its slots. */
 struct RosterGroupRecord {
     std::uint32_t registryKey{};
@@ -263,8 +326,15 @@ static_assert(sizeof(Prefix) == kCacheMagic.size() + sizeof(std::uint32_t));
 static_assert(sizeof(InvestmentConstants)
               == constants::kCharacterStatRowCount + 2 * sizeof(std::uint8_t));
 static_assert(sizeof(Header)
-              == kCacheMagic.size() + 16 * sizeof(std::uint32_t) + 2 * sizeof(std::uint64_t)
+              == kCacheMagic.size() + 20 * sizeof(std::uint32_t) + 2 * sizeof(std::uint64_t)
                      + sizeof(InvestmentConstants));
+static_assert(sizeof(VendorIndexRecord) == 2 * sizeof(std::uint32_t) + 2 * sizeof(std::uint16_t));
+static_assert(sizeof(VendorDefinitionRecord)
+              == 14 * sizeof(std::uint32_t) + 4 * sizeof(std::uint16_t));
+static_assert(sizeof(VendorSaleRowRecord)
+              == 4 * sizeof(std::uint16_t) + 9 * sizeof(std::uint32_t) + 4 * sizeof(std::uint8_t));
+static_assert(sizeof(VendorInstalledRowRecord)
+              == 2 * sizeof(std::uint16_t) + vendors::kInstalledRowStride);
 static_assert(sizeof(HashNameRecord)
               == hash_names::kNameLength + sizeof(std::uint32_t) + 4 * sizeof(std::uint8_t));
 static_assert(sizeof(ScenarioRecord)

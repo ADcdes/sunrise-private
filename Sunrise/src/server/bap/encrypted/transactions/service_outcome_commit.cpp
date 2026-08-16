@@ -1,5 +1,6 @@
 #include "service_outcome_commit.h"
 
+#include "../../../../state/activity/bubble_authority/runtime.h"
 #include "../../../../state/activity/runtime.h"
 #include "../../../../state/matchmaking/matchmaking_state.h"
 #include "../internal.h"
@@ -33,7 +34,21 @@ bool commit(ServiceOutcome& outcome, Publication& publication) noexcept {
     }
     if (outcome.hasActivityTransaction) {
         if (outcome.activityPlan.mutationDomain == activity_message::MutationDomain::entitySlots) {
-            return state::activity::entity_slots::commit(outcome.activityPlan.entitySlotMutation);
+            if (!state::activity::entity_slots::commit(outcome.activityPlan.entitySlotMutation)) {
+                return false;
+            }
+            // The keepalive only finds a link that is bound to a session. A link that allocated
+            // its own session carries the same id, so this rebinds it to itself.
+            if (outcome.activityPlan.delivery == activity_message::Delivery::joinNotifications
+                && outcome.activityPlan.sessionId != state::activity::kAbsentSessionId) {
+                publication.activitySessionId = outcome.activityPlan.sessionId;
+                publication.hasActivitySessionBinding = true;
+                publication.activitySessionFromJoin = true;
+                // The join resets the client's roster container and the grant mirror with it.
+                // A kept grant leaves that container ungranted, which refuses its placed objects.
+                state::activity::bubble_authority::clear_grants(outcome.activityPlan.sessionId);
+            }
+            return true;
         }
         if (outcome.activityPlan.mutationDomain == activity_message::MutationDomain::membership) {
             return state::activity::membership::commit(outcome.activityPlan.membershipMutation);
