@@ -17,8 +17,15 @@ namespace {
 
 /** The layout version member, quoted so a value string cannot match it. */
 constexpr std::string_view kVersionMember = "\"version\"";
-/** Members replaced with the bundled default because their value form changed. */
-constexpr std::array<std::string_view, 1> kReplacedMembers{"\"key_bindings\""};
+/**
+ * Members replaced with the bundled default because their value form changed.
+ *
+ * Version 3 changed how a key binding names its key. Version 4 gave every character an authored
+ * inventory, whose rows carry instance identities that have to be unique across the account and
+ * agree with the equipment beside them, so a version-3 character cannot be carried forward and
+ * takes the bundled one instead.
+ */
+constexpr std::array<std::string_view, 2> kReplacedMembers{"\"key_bindings\"", "\"characters\""};
 /** One splice per replaced member, plus the version member itself. */
 constexpr std::size_t kSpliceCapacity = kReplacedMembers.size() + 1;
 /** Room for the version member and its digits when the file predates versioning. */
