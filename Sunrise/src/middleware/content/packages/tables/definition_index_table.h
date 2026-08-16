@@ -176,9 +176,11 @@ inline constexpr std::size_t kSocketEntryListTableSlot = 97;
 inline constexpr std::size_t kInvestmentRootChild = 0;
 /** The investment root holds the inventory bucket table at this slot. */
 inline constexpr std::size_t kBucketTableSlot = 17;
-/** Installed bucket-definition table pairing inventory buckets with native equipment slots. */
-inline constexpr std::uint32_t kBucketDefinitionTableTag = 0x81327D66U;
-/** Package class of the bucket-definition index table. */
+/**
+ * Package class of the bucket-definition table pairing inventory buckets with native equipment
+ * slots. Exactly one installed entry carries it, so a class sweep locates the table without
+ * naming the tag it happens to hold in one install.
+ */
 inline constexpr std::uint32_t kBucketDefinitionTableClass = 0x80805936U;
 /** The installed table contains one row for each item-bearing bucket definition. */
 inline constexpr std::size_t kBucketDefinitionCount = 34;

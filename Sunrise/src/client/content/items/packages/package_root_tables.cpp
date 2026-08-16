@@ -40,6 +40,48 @@ find_bucket(std::span<const buckets::Descriptor> descriptors, std::uint8_t bucke
     return found;
 }
 
+/** The first tag a class sweep reported and how many entries carried the class. */
+struct BucketDefinitionTable {
+    std::uint32_t tag{};
+    std::size_t matches{};
+};
+
+/** @param context Sweep result. @param tag One matching tag. @return Always true, to count all. */
+bool collect_bucket_definition_tag(void* context, std::uint32_t tag) noexcept {
+    auto* located = static_cast<BucketDefinitionTable*>(context);
+    if (located->matches == 0) {
+        located->tag = tag;
+    }
+    ++located->matches;
+    return true;
+}
+
+/**
+ * Locates the bucket-definition table by the class its entry record carries.
+ * A tag is a package-local handle that a repack moves, so naming one pins the extraction to a
+ * single install. The class belongs to the definition ABI, so it names the table wherever it was
+ * packed. Entry tables are plain file data, so the sweep needs no block keys.
+ * @param source Package source.
+ * @param tag Receives the located tag.
+ * @return True when exactly one installed entry carries the class.
+ */
+[[nodiscard]] bool find_bucket_definition_table(const reader::Source& source,
+                                                std::uint32_t& tag) noexcept {
+    BucketDefinitionTable located{};
+    reader::ScanResult scanned{};
+    if (!reader::scan_class(source.directory,
+                            tables::kBucketDefinitionTableClass,
+                            &collect_bucket_definition_tag,
+                            &located,
+                            scanned)
+        || located.matches != 1) {
+        report_bucket_equipment_failure("table_sweep", located.matches, scanned.packages);
+        return false;
+    }
+    tag = located.tag;
+    return true;
+}
+
 /**
  * Extracts and validates the installed bucket/equipment-slot relation.
  * The table contains inline 72-byte records; its array elements are not index rows or tag links.
@@ -50,16 +92,18 @@ find_bucket(std::span<const buckets::Descriptor> descriptors, std::uint8_t bucke
     std::span<const buckets::Descriptor> descriptors,
     std::array<std::int8_t, buckets::kDescriptorCapacity>& equipmentSlots) noexcept {
     equipmentSlots.fill(buckets::kUnavailableEquipmentSlot);
+    std::uint32_t tableTag = 0;
+    if (!find_bucket_definition_table(source, tableTag)) {
+        return false;
+    }
     std::uint32_t tableClass = 0;
     tables::Array table{};
-    if (!reader::read_tag(source,
-                          storage.scratch,
-                          tables::kBucketDefinitionTableTag,
-                          storage.child,
-                          tableClass)) {
+    if (!reader::read_tag(source, storage.scratch, tableTag, storage.child, tableClass)) {
         report_bucket_equipment_failure("table_read", 0, 0);
         return false;
     }
+    // The sweep and the reader resolve the installed entry independently, so the class the reader
+    // reports still has to agree with the one the table was selected by.
     if (tableClass != tables::kBucketDefinitionTableClass) {
         report_bucket_equipment_failure("table_class", tableClass, 0);
         return false;
