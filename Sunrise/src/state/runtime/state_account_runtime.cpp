@@ -25,6 +25,7 @@ namespace authored_inventory = account::inventory;
 namespace item_details = build_data::items::details;
 namespace inventory_buckets = build_data::inventory::buckets;
 namespace family4_loadout = middleware::datagen::family4::loadout;
+namespace socket_lists = build_data::socket_entry_lists;
 
 /** First SOID reserved for item instances created by this local runtime. */
 constexpr std::uint64_t kFirstGeneratedItemSoid = 0x4000000000000001ULL;

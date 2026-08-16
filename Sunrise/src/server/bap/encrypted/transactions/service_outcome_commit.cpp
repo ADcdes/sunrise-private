@@ -1,5 +1,6 @@
 #include "service_outcome_commit.h"
 
+#include "../../../../client/content/investment/worker.h"
 #include "../../../../core/logging/log.h"
 #include "../../../../state/activity/bubble_authority/runtime.h"
 #include "../../../../state/activity/runtime.h"
