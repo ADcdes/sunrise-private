@@ -135,6 +135,10 @@ void parse(std::string_view text, Settings& output) noexcept {
                        kMinimumTimeoutMs,
                        kMaximumTimeoutMs);
     }
+    // A hand-edited file can carry both exclusive switches. Removing every timeout wins.
+    if (output.enabled) {
+        output.custom = false;
+    }
 }
 
 /**

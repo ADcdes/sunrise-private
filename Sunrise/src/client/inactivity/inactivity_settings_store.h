@@ -10,8 +10,15 @@ namespace sunrise::client::inactivity {
 /** Activity lanes the Client keeps a separate inactivity timeout for. */
 inline constexpr std::size_t kActivityCount = 14;
 
-/** Shortest timeout offered, in milliseconds. Short enough to prove a change without a wait. */
-inline constexpr std::uint32_t kMinimumTimeoutMs = 10000;
+/**
+ * Shortest timeout offered, in milliseconds.
+ *
+ * The Client will not time any lane out until the session has outlived its own grace, which is
+ * around a minute on this build and which this module does not write. A shorter lane could not
+ * fire any sooner, so offering one would only look like a hold that is not working. A file
+ * carrying a smaller value is clamped up to this rather than refused.
+ */
+inline constexpr std::uint32_t kMinimumTimeoutMs = 60000;
 /** Longest timeout offered, in milliseconds. A day outlasts any session. */
 inline constexpr std::uint32_t kMaximumTimeoutMs = 86400000;
 
@@ -62,13 +69,19 @@ inline constexpr std::array<ActivityInfo, kActivityCount> kActivities{{
 /** Compiled lanes a fresh install holds. */
 inline constexpr std::array<std::uint32_t, kActivityCount> kDefaultTimeouts = longest_timeouts();
 
-/** Runtime inactivity configuration. This module owns it; Core settings do not carry it. */
+
+/**
+ * Runtime inactivity configuration. This module owns it; Core settings do not carry it.
+ *
+ * The two switches are exclusive, because they describe opposite behaviour: one removes every
+ * timeout and the other replaces each with a chosen one. Neither set leaves the Client's own
+ * timeouts in place.
+ */
 struct Settings {
     /** Milliseconds per lane, in block order. Held only while custom is set. */
     std::array<std::uint32_t, kActivityCount> timeouts{kDefaultTimeouts};
-    /** False puts back the lanes the Client authored. */
     bool enabled{false};
-    /** False holds every lane at its longest and leaves the stored milliseconds alone. */
+    /** Never set alongside enabled; the two ask for opposite things. */
     bool custom{false};
 };
 
