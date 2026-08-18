@@ -65,7 +65,6 @@ bool shutdown() noexcept {
     hooks::bitmap::uninstall();
     hooks::bootflow::uninstall();
     hooks::infinite_ammo::uninstall();
-    // Puts the Client's own timeouts back, so a detached module leaves them as it found them.
     hooks::inactivity::uninstall();
     hooks::noclip::uninstall();
     hooks::teleport::uninstall();

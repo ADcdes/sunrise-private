@@ -219,7 +219,6 @@
     <ClCompile Include="src\client\movement\movement_settings_store.cpp" />
     <ClCompile Include="src\client\inactivity\inactivity_settings_store.cpp" />
     <ClCompile Include="src\client\hooks\inactivity\inactivity_override.cpp" />
-    <ClCompile Include="src\client\ui\inactivity\inactivity_panel.cpp" />
     <ClCompile Include="src\client\ui\player\player_panel.cpp" />
     <ClCompile Include="src\client\player\player_position.cpp" />
     <ClCompile Include="src\client\player\player_settings_store.cpp" />
@@ -791,7 +790,6 @@
     <ClInclude Include="src\client\movement\movement_settings_store.h" />
     <ClInclude Include="src\client\inactivity\inactivity_settings_store.h" />
     <ClInclude Include="src\client\hooks\inactivity\inactivity_override.h" />
-    <ClInclude Include="src\client\ui\inactivity\inactivity_panel.h" />
     <ClInclude Include="src\client\ui\player\player_panel.h" />
     <ClInclude Include="src\client\player\player_position.h" />
     <ClInclude Include="src\client\player\player_settings_store.h" />
