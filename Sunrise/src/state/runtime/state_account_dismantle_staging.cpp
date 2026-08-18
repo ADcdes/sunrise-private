@@ -27,8 +27,31 @@ namespace item_details = build_data::items::details;
 namespace inventory_buckets = build_data::inventory::buckets;
 namespace family4_loadout = middleware::datagen::family4::loadout;
 
-/** Equipment slots 0-2 are weapons and 3-7 are class-specific armor. */
-constexpr std::uint8_t kGearEquipmentSlotCount = 8;
+/**
+ * @return True when a native equipment slot holds weapons or class-specific armor, the gear the
+ *         supported client pays materials for. Native slot numbers are not the semantic enum
+ *         order (kinetic is 7, energy 8, heavy 9), so the check goes through the semantic map.
+ */
+[[nodiscard]] bool gear_equipment_slot(std::uint8_t nativeSlot) noexcept {
+    using EquipmentSlot = authored_inventory::EquipmentSlot;
+    std::size_t semanticIndex = authored_inventory::kEquipmentSlotCount;
+    if (!semantic_equipment_slot(nativeSlot, semanticIndex)) {
+        return false;
+    }
+    switch (static_cast<EquipmentSlot>(semanticIndex)) {
+    case EquipmentSlot::kinetic:
+    case EquipmentSlot::energy:
+    case EquipmentSlot::heavy:
+    case EquipmentSlot::helmet:
+    case EquipmentSlot::gauntlets:
+    case EquipmentSlot::chest:
+    case EquipmentSlot::legs:
+    case EquipmentSlot::classItem:
+        return true;
+    default:
+        return false;
+    }
+}
 
 /** Writes one exhaustive item-dismantle transaction checkpoint. */
 void report_dismantle(std::string_view stage,
@@ -70,13 +93,37 @@ void report_dismantle(std::string_view stage,
     }
 }
 
+/** Records one payout row that could not be credited, so a silent zero payout is visible. */
+void report_dismantle_reward_dropped(std::string_view reason,
+                                     std::uint32_t definitionHash,
+                                     std::int32_t policyQuantity,
+                                     std::int32_t previousQuantity,
+                                     std::int32_t maxStackSize) noexcept {
+    std::array<char, core::log::kLineCapacity> line{};
+    const int count = std::snprintf(line.data(),
+                                    line.size(),
+                                    "ev=dismantle stage=reward result=dropped reason=%.*s "
+                                    "definition_hash=0x%08X policy_quantity=%d held=%d "
+                                    "max_stack=%d",
+                                    static_cast<int>(reason.size()),
+                                    reason.data(),
+                                    definitionHash,
+                                    policyQuantity,
+                                    previousQuantity,
+                                    maxStackSize);
+    if (count > 0) {
+        core::log::write(core::log::Channel::state,
+                         core::log::Level::warn,
+                         {line.data(), static_cast<std::size_t>(count)});
+    }
+}
+
 /**
  * Credits the supported client's ordinary weapon/armor dismantle payout.
  *
- * Capped stacks
- * lose only the overflowing part, matching normal profile-inventory behavior.
- * Every credited row
- * receives a new mutation serial so the account observer can display it.
+ * Capped stacks lose only the overflowing part, matching normal profile-inventory behavior; a
+ * stack already at its native cap drops that row's payout and says so in the log. Every credited
+ * row receives a new mutation serial so the account observer can display it.
  */
 [[nodiscard]] bool
 apply_dismantle_rewards(const AccountState& before,
@@ -90,7 +137,7 @@ apply_dismantle_rewards(const AccountState& before,
     if (!valid_profile_inventory(before)) {
         return false;
     }
-    if (equipmentSlot >= kGearEquipmentSlotCount) {
+    if (!gear_equipment_slot(equipmentSlot)) {
         return true;
     }
 
@@ -139,6 +186,9 @@ apply_dismantle_rewards(const AccountState& before,
         const bool appended = profileIndex == after.profileItemCount;
         if ((appended && after.profileItemCount >= after.profileItems.size())
             || greatestMutationSerial == (std::numeric_limits<std::int32_t>::max)()) {
+            report_dismantle_reward_dropped(
+                appended ? "profile_full" : "serial_exhausted", policy.definitionHash,
+                policy.quantity, 0, detail.maxStackSize);
             continue;
         }
         const std::int32_t previousQuantity =
@@ -146,6 +196,12 @@ apply_dismantle_rewards(const AccountState& before,
         const std::int32_t available = detail.maxStackSize - previousQuantity;
         const std::int32_t credited = (std::min)(policy.quantity, available);
         if (credited <= 0) {
+            // Every stack of this currency is already at its native cap.
+            report_dismantle_reward_dropped("stack_capped",
+                                            policy.definitionHash,
+                                            policy.quantity,
+                                            previousQuantity,
+                                            detail.maxStackSize);
             continue;
         }
 
@@ -162,6 +218,11 @@ apply_dismantle_rewards(const AccountState& before,
         }
         // A full native bucket drops this reward, but never blocks deletion of the source item.
         if (!account::valid(candidate) || !valid_profile_inventory(candidate)) {
+            report_dismantle_reward_dropped("bucket_full",
+                                            policy.definitionHash,
+                                            policy.quantity,
+                                            previousQuantity,
+                                            detail.maxStackSize);
             continue;
         }
         if (rewardCount >= rewards.size()) {

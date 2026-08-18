@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "core": {
     "logging": {
       "debugger_sink": true,
@@ -141,6 +141,10 @@
       "primary_soid": "0x9EAA300100100100",
       "dismantle_rewards": [
         {
+          "definition_hash": "0xBC53E66E",
+          "quantity": 250
+        },
+        {
           "definition_hash": "0x3CF2E8E2",
           "quantity": 4
         },
@@ -152,15 +156,15 @@
       "profile_items": [
         {
           "definition_hash": "0xBC53E66E",
-          "quantity": 250000
+          "quantity": 100000
         },
         {
           "definition_hash": "0x3CF2E8E2",
-          "quantity": 999999
+          "quantity": 50000
         },
         {
           "definition_hash": "0xA7EE4765",
-          "quantity": 999999
+          "quantity": 50000
         },
         {
           "definition_hash": "0xB19439E5",
@@ -168,7 +172,7 @@
         },
         {
           "definition_hash": "0x28D6AC07",
-          "quantity": 9999
+          "quantity": 500
         },
         {
           "definition_hash": "0xE5B38AD2",
