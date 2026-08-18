@@ -6,6 +6,7 @@
 #include "../hooks/config_getter/config_getter_lifecycle.h"
 #include "../hooks/cursor/runtime.h"
 #include "../hooks/graphics/graphics_hook_lifecycle.h"
+#include "../hooks/inactivity/inactivity_override.h"
 #include "../hooks/infinite_ammo/infinite_ammo.h"
 #include "../hooks/network/runtime.h"
 #include "../hooks/noclip/runtime.h"
@@ -14,6 +15,7 @@
 #include "../hooks/queuez/queuez_hook_lifecycle.h"
 #include "../hooks/retail_log/retail_log_lifecycle.h"
 #include "../hooks/teleport/runtime.h"
+#include "../inactivity/inactivity_settings_store.h"
 #include "../movement/movement_settings_store.h"
 #include "../player/player_settings_store.h"
 #include "../targets/game.h"
@@ -29,6 +31,7 @@ bool initialize(void* module) noexcept {
     // Loaded before the pages register, so each page draws saved values on its first frame.
     movement::initialize(module);
     player::initialize(module);
+    inactivity::initialize(module);
     return ui::runtime::initialize();
 }
 
@@ -62,6 +65,8 @@ bool shutdown() noexcept {
     hooks::bitmap::uninstall();
     hooks::bootflow::uninstall();
     hooks::infinite_ammo::uninstall();
+    // Puts the Client's own timeouts back, so a detached module leaves them as it found them.
+    hooks::inactivity::uninstall();
     hooks::noclip::uninstall();
     hooks::teleport::uninstall();
     hooks::queuez::uninstall();
@@ -99,6 +104,8 @@ bool shutdown() noexcept {
     runtime::g_graphicsStage = runtime::StageState::pending;
     runtime::g_platformStage = runtime::StageState::pending;
     ui::runtime::shutdown();
+    // The reverse of the order the stores initialize in.
+    inactivity::shutdown();
     player::shutdown();
     movement::shutdown();
     core::log::write(core::log::Channel::client, core::log::Level::info, "ev=shutdown result=ok");

@@ -6,6 +6,7 @@
 
 #include "../../../core/ui/components/toggle/ui_toggle_component.h"
 #include "../../player/player_settings_store.h"
+#include "../inactivity/inactivity_panel.h"
 
 namespace sunrise::client::ui::player {
 
@@ -23,6 +24,10 @@ void draw() noexcept {
     if (changed) {
         (void)client::player::publish(settings);
     }
+
+    ImGui::Spacing();
+    ImGui::Spacing();
+    inactivity::draw_section();
 }
 
 } // namespace sunrise::client::ui::player
