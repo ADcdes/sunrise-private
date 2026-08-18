@@ -36,7 +36,9 @@ constexpr std::array<ReplacedMember, 6> kReplacedMembers{{
     {"\"topology\"", 5},
     {"\"characters\"", 5},
     {"\"profile_items\"", 7},
-    {"\"dismantle_rewards\"", 7},
+    // Version 8 turned the flat payout list into rows filtered by rarity, gear class and
+    // masterwork state.
+    {"\"dismantle_rewards\"", 8},
 }};
 /** One splice per replaced member, plus the version member itself. */
 constexpr std::size_t kSpliceCapacity = kReplacedMembers.size() + 1;
