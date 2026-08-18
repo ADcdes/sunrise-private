@@ -75,8 +75,8 @@ void draw_inactivity() noexcept {
 
     ImGui::TextUnformatted("Inactivity");
     ImGui::Separator();
-    ImGui::TextWrapped("The client returns a session to orbit once its controller has been idle "
-                       "for the timeout of the activity it is in.");
+    ImGui::TextWrapped("Disable AFK timeouts from activities kicking to orbit and the title "
+                       "screen.");
     ImGui::Spacing();
 
     bool changed = toggle::control("Enabled##inactivity", configured.enabled);
