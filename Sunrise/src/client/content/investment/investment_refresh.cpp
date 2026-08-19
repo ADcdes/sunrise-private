@@ -49,8 +49,8 @@ bool refresh() noexcept {
         // calls, so a held thread stopped inside one would deadlock the freeze below.
         AcquireSRWLockExclusive(&g_refreshLock);
         const bool persisted = state::ensure_profile_item_identities()
-                                && state::ensure_character_subclasses()
-                                && state::build_data::persist();
+                               && state::ensure_character_subclasses()
+                               && state::build_data::persist();
         // Nothing reads a package again until the next boot, so the open files and the held
         // tables go back now rather than at process exit.
         middleware::content::packages::reader::release_caches();

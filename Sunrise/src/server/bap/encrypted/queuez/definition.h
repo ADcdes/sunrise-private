@@ -19,12 +19,8 @@ inline constexpr std::uint32_t kAccountFamilyType = 4;
 inline constexpr std::int32_t kInitialFamilyVersion = 0;
 /**
  * Family four holds account, character, one id per character-owned item, and one id per
- *
- * resident-backed mod or shader stack. Profile currency rows deliberately carry no instance
- *
- * SOID; the fixed addition covers all 50 native rows in each supported action-source bucket.
- * It
- * matches the snapshot descriptor size, so a snapshot that builds always stages.
+ * resident-backed mod or shader stack. Profile currency rows carry no instance SOID; the fixed
+ * addition covers all 50 native rows in each supported action-source bucket.
  */
 inline constexpr std::size_t kResidentCapacity =
     2 + state::kCharacterCapacity * middleware::datagen::family4::loadout::kItemCapacity

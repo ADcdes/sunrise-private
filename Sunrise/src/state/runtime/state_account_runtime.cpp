@@ -108,10 +108,8 @@ void report_acquisition(std::string_view stage,
 
 /**
  * Prepares a subclass ability-entry transition without publishing account State.
- * The requested entry must currently compete (share a socket-entry group) with exactly one of the
- * character's 5 authored ability picks; that pick is the one the transition updates. This mirrors
- * how `resolve_socket_states` decides which entries a selection makes active, so the entry a
- * request names always maps back to the same field that selection would have set.
+ * The requested entry must share a socket-entry group with exactly one of the character's 5
+ * authored picks; that pick is updated, mirroring how `resolve_socket_states` reads a selection.
  */
 [[nodiscard]] bool stage_subclass_selection(const AccountState& snapshot,
                                             std::size_t characterIndex,
@@ -127,6 +125,7 @@ void report_acquisition(std::string_view stage,
     if (!before.selected || before.soid == 0) {
         return false;
     }
+    // Index of the subclass slot in the authored equipment array.
     constexpr std::size_t kSubclassSlot =
         static_cast<std::size_t>(authored_inventory::EquipmentSlot::subclass);
     const auto& subclass = before.equipment.slots[kSubclassSlot];
@@ -147,10 +146,9 @@ void report_acquisition(std::string_view stage,
         return false;
     }
 
-    // A clicked entry's table position does not say which ability slot it fills; only its
-    // resolved destination bucket does. A bundled pick (an Attunement, for example) can mix its
-    // members freely across slots, so every member in the clicked entry's bundle is checked, not
-    // just the one clicked.
+    // A clicked entry's table position does not say which ability slot it fills; only its resolved
+    // destination bucket does. A bundled pick can mix members across slots, so every member of the
+    // clicked entry's bundle is checked, not just the one clicked.
     CharacterState after = before;
     // The picks belong to the equipped subclass item itself, not the character, so each owned
     // subclass remembers its own selection independently instead of sharing one set across all
@@ -162,17 +160,19 @@ void report_acquisition(std::string_view stage,
         std::uint8_t defaultEntry;
     };
     const std::array<Route, 5> routes{{
-        {kMovementAbilityBucket, &afterSubclass->movementAbilityEntry, kDefaultMovementAbilityEntry},
+        {kMovementAbilityBucket,
+         &afterSubclass->movementAbilityEntry,
+         kDefaultMovementAbilityEntry},
         {kGrenadeAbilityBucket, &afterSubclass->grenadeAbilityEntry, kDefaultGrenadeAbilityEntry},
         {kSuperAbilityBucket, &afterSubclass->superAbilityEntry, kDefaultSuperAbilityEntry},
         {kMeleeAbilityBucket, &afterSubclass->meleeAbilityEntry, kDefaultMeleeAbilityEntry},
-        {class_ability_bucket(after.characterClass), &afterSubclass->classAbilityEntry,
+        {class_ability_bucket(after.characterClass),
+         &afterSubclass->classAbilityEntry,
          kDefaultClassAbilityEntry},
     }};
     const auto bucket_of = [&](std::uint8_t entryIndex) noexcept {
         std::uint8_t bucket = build_data::socket_entry_buckets::kNoDestinationBucket;
-        (void)build_data::find_socket_entry_bucket(
-            detail.socketEntryListIndex, entryIndex, bucket);
+        (void)build_data::find_socket_entry_bucket(detail.socketEntryListIndex, entryIndex, bucket);
         return bucket;
     };
     const auto route_entry = [&](std::uint8_t entryIndex) noexcept {
@@ -184,13 +184,9 @@ void report_acquisition(std::string_view stage,
             }
         }
     };
-    // A click can land on any member of a bundle, not only the routable one: the diamond's other
-    // 3 quadrants are passive nodes with no destination bucket of their own (see the group-3
-    // dump: only one member of each 4-node group resolves to melee, or to super and melee both).
-    // The requested entry is only ever the whole bundle's anchor when it happens to be its lowest
-    // index, so the bundle's true start is found by scanning backward first, then every member is
-    // routed from there. Members share the anchor's group only while a wide group (a bundle, not
-    // a simple set of alternatives) is in play; see resolve_socket_states for the same threshold.
+    // A click can land on any member of a bundle, not only the routable one: the other quadrants
+    // are passive nodes with no destination bucket. The bundle's start is found by scanning
+    // backward, then every member is routed from there, and only while the group is wide.
     std::size_t groupPopulation = 0;
     for (std::size_t index = 0; index < entries.entries.size(); ++index) {
         if (entries.entries[index].group == requested.group) {
@@ -200,15 +196,9 @@ void report_acquisition(std::string_view stage,
     if (groupPopulation <= kMaxAttunementBundleSize) {
         route_entry(requestedEntry);
     } else {
-        // A wide group is several same-sized bundles competing for one pick, not several
-        // independent alternatives, so only one bundle's fields stay set at a time. A bundle that
-        // does not touch every field this group can reach (the top and bottom Attunement options
-        // here do not touch super, only the middle one does) must not leave an earlier bundle's
-        // value behind in the field it left alone: super stuck on a prior Attunement's pick while
-        // melee moves to a different one is a combination the game never produces on its own, and
-        // it stops accepting further picks once state reaches it. Every bucket this whole group
-        // can ever reach is reset to its ordinary default first, and only then does the picked
-        // bundle's own members overwrite the ones it actually claims.
+        // A wide group is several same-sized bundles competing for one pick, so only one bundle's
+        // fields stay set. A bundle that does not touch every field the group reaches must not
+        // leave an earlier bundle's value behind, so every bucket is reset before the pick writes.
         for (std::size_t index = 0; index < entries.entries.size(); ++index) {
             if (entries.entries[index].group != requested.group) {
                 continue;
@@ -225,8 +215,8 @@ void report_acquisition(std::string_view stage,
                && entries.entries[blockStart - 1].group == requested.group) {
             --blockStart;
         }
-        for (std::size_t offset = 0; offset < kMaxAttunementBundleSize
-             && blockStart + offset < entries.entries.size()
+        for (std::size_t offset = 0;
+             offset < kMaxAttunementBundleSize && blockStart + offset < entries.entries.size()
              && entries.entries[blockStart + offset].group == requested.group;
              ++offset) {
             route_entry(static_cast<std::uint8_t>(blockStart + offset));
@@ -402,12 +392,9 @@ bool prepare_equipment_swap(std::uint64_t requestedInstanceSoid,
     }
 
     if (previousInstanceSoid != 0) {
-        // The serial on an unequipped row is also the Client's stable ordering token for that
-        // bucket.  Giving the displaced item a fresh, greatest serial makes the Client rebuild it
-        // in the first grid cell even though the character object places it in the selected row.
-        // Transfer the selected row's prior token along with the row instead: the newly equipped
-        // item still has a fresh generation, while the displaced item occupies the grid cell the
-        // player clicked.
+        // The serial on an unequipped row is also the Client's ordering token for that bucket. A
+        // fresh greatest serial would move the displaced item to the first cell, so transfer the
+        // selected row's prior token instead and it keeps the cell the player clicked.
         authored_inventory::Item& displaced = after.inventory.values[inventoryIndex];
         if (displaced.instanceSoid != previousInstanceSoid) {
             return false;
@@ -631,10 +618,9 @@ bool commit_equipment_swap(PendingEquipmentSwap& mutation) noexcept {
     runtime::storage::g_state.account = candidate;
     ReleaseSRWLockExclusive(&runtime::storage::g_stateLock);
 
-    // The published ability buckets are resolved against whichever subclass is currently
-    // equipped; swapping that item away makes the domain stale the same way an ability-entry
-    // pick does, so it needs the same invalidation or the character screen keeps showing
-    // whatever the previous subclass resolved to until something else happens to refresh it.
+    // The published ability buckets resolve against whichever subclass is equipped, so swapping
+    // that item away makes the domain stale the same way an ability-entry pick does. It needs the
+    // same invalidation or the character screen keeps showing the previous resolution.
     if (prepared.equipmentSlotIndex
         == static_cast<std::size_t>(authored_inventory::EquipmentSlot::subclass)) {
         build_data::invalidate_ability_buckets();
@@ -665,6 +651,7 @@ AccountState account_snapshot() noexcept {
 
 /** Grants each character the other 2 subclasses of its equipped subclass's class. */
 bool ensure_character_subclasses() noexcept {
+    // Index of the subclass slot in the authored equipment array.
     constexpr std::size_t kSubclassSlot =
         static_cast<std::size_t>(authored_inventory::EquipmentSlot::subclass);
     AcquireSRWLockExclusive(&runtime::storage::g_stateLock);
@@ -677,8 +664,7 @@ bool ensure_character_subclasses() noexcept {
     bool haveNextSoid = false;
     bool changed = false;
     bool failed = false;
-    for (std::size_t characterIndex = 0;
-         characterIndex < candidate.characterCount && !failed;
+    for (std::size_t characterIndex = 0; characterIndex < candidate.characterCount && !failed;
          ++characterIndex) {
         CharacterState& character = candidate.characters[characterIndex];
         const std::optional<authored_inventory::Item>& equipped =

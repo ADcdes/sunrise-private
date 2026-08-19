@@ -172,12 +172,9 @@ void report_repush(const char* stage, std::size_t bytes) noexcept {
 }
 
 /**
- * Re-derives the selected character's appearance and roster records once the ability-bucket
- * rebuild owed by a subclass selection has had time to land.
- * The refresh sent inline with the opcode-801 response can still carry stale or empty ability
- * buckets, because that rebuild runs asynchronously off the Client content-extraction pump. This
- * reuses the same generic resync builders the cross-peer refresh uses, since both just need to
- * re-derive the two records from whatever State holds right now.
+ * Re-derives the selected character's appearance and roster once the ability-bucket rebuild owed
+ * by a subclass selection has landed. The refresh sent inline with the opcode-801 response can
+ * still carry empty buckets, because that rebuild runs off the Client content-extraction pump.
  * @param session Auth, nonce and queuez state owned by the connection.
  * @param scratch Transform buffers owned by the lock.
  * @param response Whole-frame storage owned by the caller.
@@ -193,7 +190,11 @@ void report_repush(const char* stage, std::size_t bytes) noexcept {
     if (!session.abilityRefreshArmed || GetTickCount64() < session.abilityRefreshDueTick) {
         return false;
     }
-    session.abilityRefreshArmed = false;
+    // Nothing is owed until a family that reads abilities is subscribed. The arm stays set, the
+    // same way the banner re-push below keeps its own.
+    if (!session.queuez.family0Active && !session.queuez.family3Active) {
+        return false;
+    }
     touchesScratch = true;
 
     auto nextSendNonce = session.sendNonce;
@@ -203,12 +204,12 @@ void report_repush(const char* stage, std::size_t bytes) noexcept {
     if (current.family0Active) {
         queuez::SessionState appearanceAfter{};
         if (push::append_account_resync_appearance_notification(scratch,
-                                                                 current,
-                                                                 state::bap().sessionKey,
-                                                                 nextSendNonce,
-                                                                 scratch.framed,
-                                                                 framedSize,
-                                                                 appearanceAfter)) {
+                                                                current,
+                                                                state::bap().sessionKey,
+                                                                nextSendNonce,
+                                                                scratch.framed,
+                                                                framedSize,
+                                                                appearanceAfter)) {
             current = appearanceAfter;
             wrote = true;
         }
@@ -216,12 +217,12 @@ void report_repush(const char* stage, std::size_t bytes) noexcept {
     if (current.family3Active) {
         queuez::SessionState rosterAfter{};
         if (push::append_account_resync_roster_notification(scratch,
-                                                             current,
-                                                             state::bap().sessionKey,
-                                                             nextSendNonce,
-                                                             scratch.framed,
-                                                             framedSize,
-                                                             rosterAfter)) {
+                                                            current,
+                                                            state::bap().sessionKey,
+                                                            nextSendNonce,
+                                                            scratch.framed,
+                                                            framedSize,
+                                                            rosterAfter)) {
             current = rosterAfter;
             wrote = true;
         }
@@ -236,6 +237,9 @@ void report_repush(const char* stage, std::size_t bytes) noexcept {
     written = framedSize;
     session.sendNonce = nextSendNonce;
     session.queuez = current;
+    // The frame is committed here, so the arm is committed with it. Disarming any earlier drops
+    // the owed refresh on a transient encode failure.
+    session.abilityRefreshArmed = false;
     report_repush("ability_refresh", framedSize);
     return true;
 }

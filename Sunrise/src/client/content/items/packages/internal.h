@@ -128,10 +128,8 @@ void request(std::uint16_t definitionIndex, DetailRequests& requested) noexcept;
 /**
  * Adds every socket lane's initial plug to the requested set.
  * A lane using native defaults falls back to this plug, so its detail must exist.
- * @param row
- * Item row already read from its definition blob.
- * @param itemDefinitionCount Installed
- * item-table bound.
+ * @param row Item row already read from its definition blob.
+ * @param itemDefinitionCount Installed item-table bound.
  * @param requested Requested-set storage.
  */
 void append_initial_plugs(const tables::items::Row& row,
@@ -140,13 +138,10 @@ void append_initial_plugs(const tables::items::Row& row,
 
 /**
  * Materializes requested native indices in ascending order.
- * @param requested Deduplicated
- * native-index set.
+ * @param requested Deduplicated native-index set.
  * @param output Fixed detail-index storage.
- * @param count Receives the
- * number of selected rows, or zero when output is too small.
- * @return True when every selected
- * row fits.
+ * @param count Receives the number of selected rows, or zero when output is too small.
+ * @return True when every selected row fits.
  */
 [[nodiscard]] bool materialize_requests(const DetailRequests& requested,
                                         std::span<std::uint16_t> output,
@@ -212,18 +207,17 @@ read_investment_constants(const reader::Source& source,
  * @param count Receives the number of rows built.
  * @return True when the table reads; a subclass that fails is skipped, not fatal.
  */
-[[nodiscard]] bool
-build_character_abilities(const reader::Source& source,
-                          reader::Scratch& scratch,
-                          std::span<const std::byte> root,
-                          std::vector<std::byte>& table,
-                          std::vector<std::byte>& definition,
-                          std::vector<std::byte>& blob,
-                          std::span<state::build_data::abilities::Definition> output,
-                          std::size_t& count,
-                          std::span<state::build_data::socket_entry_buckets::Definition>
-                              entryBucketOutput,
-                          std::size_t& entryBucketCount) noexcept;
+[[nodiscard]] bool build_character_abilities(
+    const reader::Source& source,
+    reader::Scratch& scratch,
+    std::span<const std::byte> root,
+    std::vector<std::byte>& table,
+    std::vector<std::byte>& definition,
+    std::vector<std::byte>& blob,
+    std::span<state::build_data::abilities::Definition> output,
+    std::size_t& count,
+    std::span<state::build_data::socket_entry_buckets::Definition> entryBucketOutput,
+    std::size_t& entryBucketCount) noexcept;
 
 /**
  * Resolves which of the 12 semantic ability buckets every entry in one socket-entry list reaches.
@@ -353,15 +347,11 @@ void report(std::size_t published, const char* reason) noexcept;
 
 /**
  * Reads and publishes the root's dense collectible-to-item mapping table.
- * @param source
- * Package source.
+ * @param source Package source.
  * @param storage Pass storage, including scratch bytes and bounded row storage.
-
- * * @param root Investment root bytes.
- * @param itemDefinitionCount Number of rows in the
- * installed item index table.
- * @return True when every tag, class, bound, and item link validates
- * and publishes.
+ * @param root Investment root bytes.
+ * @param itemDefinitionCount Number of rows in the installed item index table.
+ * @return True when every tag, class, bound, and item link validates and publishes.
  */
 [[nodiscard]] bool build_collectibles(const reader::Source& source,
                                       Storage& storage,

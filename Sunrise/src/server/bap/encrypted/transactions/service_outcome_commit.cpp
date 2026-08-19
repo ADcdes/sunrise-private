@@ -182,9 +182,9 @@ bool commit(ServiceOutcome& outcome, Publication& publication) noexcept {
         return state::matchmaking::commit(*mutation);
     }
     if (auto* transaction = transaction_if<EquipmentSwapTransaction>(outcome)) {
-        const bool isSubclassSlot = transaction->pending.equipmentSlotIndex
-                                    == static_cast<std::size_t>(
-                                        state::account::inventory::EquipmentSlot::subclass);
+        const bool isSubclassSlot =
+            transaction->pending.equipmentSlotIndex
+            == static_cast<std::size_t>(state::account::inventory::EquipmentSlot::subclass);
         const bool committed = state::commit_equipment_swap(transaction->pending);
         core::log::write(core::log::Channel::server,
                          committed ? core::log::Level::debug : core::log::Level::warn,
@@ -192,9 +192,8 @@ bool commit(ServiceOutcome& outcome, Publication& publication) noexcept {
                                    : "ev=equip stage=transaction_commit result=fail");
         if (committed && isSubclassSlot) {
             // The equipped subclass just changed, which makes the published ability buckets
-            // stale the same way an ability-entry pick does; wake the investment worker so the
-            // character screen does not keep showing the previous subclass's resolution until
-            // some unrelated pump happens to refresh it.
+            // stale the same way an ability-entry pick does. Wake the investment worker so the
+            // character screen stops showing the previous subclass's resolution.
             client::content::investment::worker::request_slice();
         }
         return committed;

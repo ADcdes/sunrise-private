@@ -25,6 +25,8 @@ bool Parser::account_settings(state::account::settings::AccountSettings& output)
         return false;
     }
     std::bitset<static_cast<std::size_t>(Group::count)> supplied;
+    // Tracked apart from the bitset because this key is optional: an enumerated group is required
+    // by the supplied.all() below, and an older settings file does not carry it.
     bool hasKeyBindingSource = false;
     const auto mark = [&supplied](Group group) noexcept {
         const std::size_t index = static_cast<std::size_t>(group);

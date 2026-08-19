@@ -56,9 +56,8 @@ bool build_item_rows(const reader::Source& source,
     const std::span<const std::byte> container{storage.child};
     reason = "rows";
     // The detail closure is gathered during this one walk. Collections can name any installed
-    // item row, including profile-owned shaders and modifications, so retain every readable row
-    // rather than only startup-authored/equippable definitions. The fixed request bitset still
-    // bounds this to the installed 16-bit item-table domain.
+    // item row, including profile-owned shaders and modifications, so retain every readable row.
+    // The fixed request bitset bounds this to the installed 16-bit item-table domain.
     storage.detailRequests.reset();
     storage.specialPlugCategories.fill(0);
     std::size_t detailCount = 0;
@@ -170,9 +169,8 @@ bool build_item_rows(const reader::Source& source,
         }
     }
     // Ability buckets read the socket entry list table again and depend on the detail domain, so
-    // they run last. The entry-bucket table is resolved in the same pass but never joins the
-    // on-disk cache, so a warm boot that finds the ability buckets already cached still has to
-    // run this once to fill it in for the session.
+    // they run last. The entry-bucket table never joins the on-disk cache, so a warm boot still
+    // has to run this once to fill it in for the session.
     if (published
         && (!state::build_data::ability_buckets_ready()
             || !state::build_data::socket_entry_buckets_ready())) {

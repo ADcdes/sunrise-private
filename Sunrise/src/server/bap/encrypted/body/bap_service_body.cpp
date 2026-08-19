@@ -213,9 +213,8 @@ bool process(const ServiceRoute& route,
             web_service::mutation_if<state::PendingItemDismantle>(webOutcome);
         if (equipmentSwap != nullptr) {
             // Equip is an optimistic Character-screen action. Its status-pair value is the exact
-            // Family-4 revision whose following Queuez frame makes the action authoritative. Stage
-            // that revision before encoding the reply so the Client cannot complete the action
-            // against the old object store.
+            // Family-4 revision whose following Queuez frame makes it authoritative. Stage that
+            // revision before encoding the reply, or the Client completes against the old store.
             auto& transaction = outcome.transaction.emplace<EquipmentSwapTransaction>();
             if (!queuez::stage_equipment_swap(
                     queuezState, equipmentSwap->characterSoid, transaction.update)) {
@@ -416,9 +415,8 @@ bool process(const ServiceRoute& route,
         }
         if (itemDismantle != nullptr) {
             // Dismantle is another optimistic Character-screen action. Promise only the exact
-            // Family-4 revision that carries both the character after-image and the empty
-            // item-instance release descriptor; otherwise retain the generic sentinel reply and
-            // publish no removal.
+            // Family-4 revision carrying both the character after-image and the empty release
+            // descriptor; otherwise keep the generic sentinel reply and publish no removal.
             auto& transaction = outcome.transaction.emplace<ItemDismantleTransaction>();
             if (!queuez::stage_item_dismantle(queuezState,
                                               itemDismantle->accountSoid,

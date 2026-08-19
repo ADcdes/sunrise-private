@@ -85,20 +85,17 @@ struct Item {
     std::int32_t quantity{};
     /**
      * Rising per-character generation assigned whenever this item changes inventory rows. The
-     * Client also uses it as the stable ordering token inside a bucket's grid, so an item's cell
-     * follows its serial rather than its row index. Equip swaps therefore hand the displaced item
-     * the clicked item's prior serial so it takes the clicked cell.
+     * Client also orders a bucket's grid by it, so an equip swap hands the displaced item the
+     * clicked item's prior serial to keep it in the clicked cell.
      */
     std::int32_t mutationSerial{};
     /** Native accumulated item-state bits such as the finisher favorite marker. */
     std::uint32_t flags{};
     Sockets sockets;
     /**
-     * Selected ability-node socket entries. Only meaningful when this item is a subclass; every
-     * other item carries these unused. Kept on the item rather than the character so each owned
-     * subclass remembers its own picks independently instead of sharing one set across all of
-     * them. Defaults match state::kDefault*AbilityEntry (the first option of each group, where
-     * every shipped subclass starts) but are literal here to avoid a circular include.
+     * Selected ability-node socket entries. Only meaningful on a subclass. Kept on the item, not
+     * the character, so each owned subclass remembers its own picks. Defaults match
+     * state::kDefault*AbilityEntry, literal here to avoid a circular include.
      */
     std::uint8_t movementAbilityEntry{4};
     std::uint8_t grenadeAbilityEntry{7};

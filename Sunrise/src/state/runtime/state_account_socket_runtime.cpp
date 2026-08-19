@@ -160,11 +160,9 @@ void report_socket_plug(std::string_view stage,
         return fail("definition_or_compatibility");
     }
 
-    // Ownership is only meaningful where the plug is a finite supply the account draws down. A
-    // shader is one: it is pulled from Collections into a profile stack and spent by applying it.
-    // An ornament is a permanent unlock the account holds once earned, not a stack it draws
-    // down, which is why the Client offers every valid one for a socket. Requiring a stack for
-    // one would refuse a plug the account already has.
+    // Ownership only matters where the plug is a finite supply the account draws down. A shader is
+    // one: pulled from Collections into a profile stack and spent on apply. An ornament is a
+    // permanent unlock, so requiring a stack for one would refuse a plug the account already has.
     const bool consumesStack =
         build_data::is_profile_action_source(plugDefinitionIndex, plugDefinition.bucketId)
         && build_data::is_consumed_on_apply(plugDefinitionIndex, plugDefinition.bucketId)
@@ -185,13 +183,9 @@ void report_socket_plug(std::string_view stage,
         return fail("materials");
     }
 
-    // Applying spends the stack the plug came from. The insertion cost above is a separate
-    // authored charge that leaves the plug itself untouched, so the unit is taken here.
-    //
-    // The authored-cost path cannot do this. It refuses any row carrying an instance key, because
-    // it exists for the non-instanced currency and material stacks, and an action source always
-    // carries one. Spending one is therefore its own transition: the row keeps its identity while
-    // any unit remains, and releases it with the row once the last unit goes.
+    // Applying spends the stack the plug came from; the insertion cost above is a separate charge.
+    // The authored-cost path refuses any row carrying an instance key, and an action source always
+    // has one, so the row keeps its identity until the last unit goes and is released with it.
     if (consumesStack && !spend_plug_source(chargedAccount, plugDefinition.definitionHash)) {
         return fail("plug_stack");
     }

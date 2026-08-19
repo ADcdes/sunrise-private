@@ -158,20 +158,21 @@ void report_subclass_selection_response(const middleware::web_service::Message& 
                                         const state::PendingSubclassSelection& mutation,
                                         std::span<const std::byte> response) noexcept {
     std::array<char, core::log::kLineCapacity> line{};
-    const int prefix = std::snprintf(
-        line.data(),
-        line.size(),
-        "ev=subclass_select stage=response result=ok opcode=%u transaction=%u "
-        "family_version=%d instance=0x%llX entry=%u bytes=%zu hex=",
-        static_cast<unsigned>(message.opcode),
-        static_cast<unsigned>(message.transactionId),
-        family4Version,
-        static_cast<unsigned long long>(mutation.subclassInstanceSoid),
-        static_cast<unsigned>(mutation.requestedEntry),
-        response.size());
+    const int prefix =
+        std::snprintf(line.data(),
+                      line.size(),
+                      "ev=subclass_select stage=response result=ok opcode=%u transaction=%u "
+                      "family_version=%d instance=0x%llX entry=%u bytes=%zu hex=",
+                      static_cast<unsigned>(message.opcode),
+                      static_cast<unsigned>(message.transactionId),
+                      family4Version,
+                      static_cast<unsigned long long>(mutation.subclassInstanceSoid),
+                      static_cast<unsigned>(mutation.requestedEntry),
+                      response.size());
     if (prefix <= 0 || static_cast<std::size_t>(prefix) >= line.size()) {
         return;
     }
+    // Upper-case hex, which is the form the rest of the log lines use.
     constexpr char kHex[] = "0123456789ABCDEF";
     std::size_t length = static_cast<std::size_t>(prefix);
     for (const std::byte byte : response) {
@@ -304,12 +305,12 @@ void mutate_subclass_selection(const middleware::web_service::Message& message,
     middleware::web_service::messages::opcode801::Request request{};
     if (!middleware::web_service::messages::opcode801::parse_request(message, request)) {
         std::array<char, 128> line{};
-        const int count = std::snprintf(
-            line.data(),
-            line.size(),
-            "ev=ws801 stage=parse result=fail transaction=%u payload_bytes=%zu",
-            static_cast<unsigned>(message.transactionId),
-            message.payload.size());
+        const int count =
+            std::snprintf(line.data(),
+                          line.size(),
+                          "ev=ws801 stage=parse result=fail transaction=%u payload_bytes=%zu",
+                          static_cast<unsigned>(message.transactionId),
+                          message.payload.size());
         if (count > 0) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,

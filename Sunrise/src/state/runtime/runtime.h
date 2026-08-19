@@ -16,11 +16,10 @@ namespace sunrise::state {
 [[nodiscard]] bool ensure_profile_item_identities() noexcept;
 
 /**
- * Grants each character the other 2 subclasses of the class its equipped subclass belongs to,
- * placing any missing ones into unequipped inventory with native socket defaults. Idempotent:
- * a subclass already equipped or already sitting in inventory is left alone.
- * @return True when every character with an equipped subclass ends up holding its whole class,
- * or there was nothing to check (no account, or no character carries a subclass yet).
+ * Grants each character the other 2 subclasses of its equipped subclass's class, placing missing
+ * ones into unequipped inventory with native socket defaults. Idempotent: one already equipped or
+ * already in inventory is left alone.
+ * @return True when every such character holds its whole class, or there was nothing to check.
  */
 [[nodiscard]] bool ensure_character_subclasses() noexcept;
 
@@ -45,8 +44,7 @@ struct PendingSubclassSelection {
 /**
  * Prepares one opcode-801 selection against the selected character's exact equipped subclass.
  * The installed socket-entry table maps the request to whichever of the character's 5 authored
- * ability picks currently competes in the same group; no class-specific node indices are
- * authored in State.
+ * picks competes in the same group; no class-specific node indices are authored in State.
  */
 [[nodiscard]] bool prepare_subclass_selection(std::uint64_t subclassInstanceSoid,
                                               std::uint8_t requestedEntry,
@@ -289,12 +287,9 @@ void shutdown() noexcept;
 /**
  * Prepares an equip operation for one unequipped instance on the selected character.
  * An occupied slot is swapped; an empty semantic slot receives the requested item directly.
- *
  * @param requestedInstanceSoid Unequipped item instance selected by the Client.
- * @param mutation
- * Gets the checked after-image without changing account State.
- * @return True when the instance is
- * owned, unequipped, and maps to one supported native equipment slot.
+ * @param mutation Gets the checked after-image without changing account State.
+ * @return True when the instance is owned, unequipped, and maps to one native equipment slot.
  */
 [[nodiscard]] bool prepare_equipment_swap(std::uint64_t requestedInstanceSoid,
                                           PendingEquipmentSwap& mutation) noexcept;
@@ -386,14 +381,11 @@ commit_profile_item_acquisition(PendingProfileItemAcquisition& mutation) noexcep
 
 /**
  * Prepares removal of one unequipped instance from the selected character.
- *
  * The authored inventory prefix is compacted. Any surviving item whose installed native row
  * changes receives a fresh mutation generation. Equipped items are never accepted.
- *
  * @param instanceSoid Unequipped item-instance key selected by the Client.
  * @param mutation Gets checked before/after images without changing account State.
- * @return True when the instance is uniquely owned by the selected character and both loadouts
- * resolve completely.
+ * @return True when the selected character uniquely owns it and both loadouts resolve.
  */
 [[nodiscard]] bool prepare_item_dismantle(std::uint64_t instanceSoid,
                                           PendingItemDismantle& mutation) noexcept;
@@ -413,11 +405,8 @@ commit_profile_item_acquisition(PendingProfileItemAcquisition& mutation) noexcep
 
 /**
  * Prepares one exact opcode-903 ordinary-socket selection on a selected-character item.
- *
- * The target may be equipped or unequipped. Native defaults are first materialized into a complete
- * authored socket block, then only the requested lane changes. Item identity, native row,
- * quantity, level, and mutation generation remain byte-for-byte stable.
- *
+ * The target may be equipped or unequipped. Native defaults are materialized into a complete
+ * authored socket block, then only the requested lane changes; everything else stays byte-stable.
  * @param targetInstanceSoid Selected-character item-instance key named by the Client.
  * @param socketLane Zero-based ordinary socket lane.
  * @param plugDefinitionIndex Installed plug-definition row selected by the Client.
@@ -431,18 +420,13 @@ commit_profile_item_acquisition(PendingProfileItemAcquisition& mutation) noexcep
 
 /**
  * Prepares one ordinary-socket selection for an exact character-screen item selector.
- *
- * The resolved selected-character instance is passed through the same checked transition as an
- * instance-addressed action, so acquired and unequipped items do not depend on a coincidental
- * menu-row ordinal.
- *
+ * The resolved instance runs through the same checked transition as an instance-addressed action,
+ * so acquired and unequipped items do not depend on a coincidental menu-row ordinal.
  * @param instanceIdentityToken Item-instance identity decoded from the opcode-1901 selector.
- * @param requestedSocketLane Native socket action lane; the installed compatibility relation
- * resolves the target's exact physical lane.
+ * @param requestedSocketLane Native socket action lane; compatibility resolves the physical lane.
  * @param plugDefinitionIndex Installed plug-definition row selected by the Client.
  * @param mutation Gets the checked before/after images without changing account State.
- * @return True when the location has one matching item, the plug resolves to exactly the
- * requested compatible ordinary socket lane, and the socket transition is valid.
+ * @return True when one item matches, the plug resolves to that lane, and the transition is valid.
  */
 [[nodiscard]] bool prepare_character_selector_socket_plug(std::uint64_t instanceIdentityToken,
                                                           std::uint8_t requestedSocketLane,

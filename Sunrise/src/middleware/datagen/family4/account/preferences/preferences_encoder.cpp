@@ -11,9 +11,8 @@ constexpr std::uint16_t kUnboundInputCode = 0x0074;
 constexpr std::int32_t kOpenSeedVersion = 0;
 /**
  * Seed version 1 closes a gate so the client keeps the replicated values behind it.
- * The keybinding gate now stays closed because Sunrise supplies the modeled preferences behind it.
- * The post-processing gate stays closed, or local cvars would overwrite its 3 replicated fields on
- * every sign-in.
+ * The keybinding gate stays closed because Sunrise supplies the modeled preferences. The
+ * post-processing gate stays closed, or local cvars overwrite its 3 replicated fields each login.
  */
 constexpr std::int32_t kClosedSeedVersion = 1;
 /** Source 0 makes later input reads use the replicated keybinding array. */

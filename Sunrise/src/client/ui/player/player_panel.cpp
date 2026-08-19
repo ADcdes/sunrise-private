@@ -18,6 +18,7 @@ namespace {
 namespace inactivity = client::inactivity;
 namespace toggle = core::ui::components::toggle;
 
+/** Grid width. Seven columns lays the fourteen lanes out in two rows. */
 constexpr int kLaneColumns = 7;
 
 /**
@@ -96,8 +97,8 @@ void draw_inactivity_clocks(const hooks::inactivity::Status& status) noexcept {
     if (!status.liveGraceValid) {
         return;
     }
-    const bool passed = status.liveGraceMs == 0
-                        || (timers.sessionValid && timers.sessionMs > status.liveGraceMs);
+    const bool passed =
+        status.liveGraceMs == 0 || (timers.sessionValid && timers.sessionMs > status.liveGraceMs);
     ImGui::SameLine();
     // Reported, never written.
     const double grace = static_cast<double>(status.liveGraceMs) / 1000.0;
@@ -108,6 +109,7 @@ void draw_inactivity_clocks(const hooks::inactivity::Status& status) noexcept {
     }
 }
 
+/** Draws the inactivity section: the main switch, the lane grid and the Client's clocks. */
 void draw_inactivity() noexcept {
     inactivity::Settings configured = inactivity::get();
     // Taken once, so every line below and the grid all describe the same poll.

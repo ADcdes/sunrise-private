@@ -109,7 +109,7 @@ void apply() noexcept {
     const float scale = scaling::dpi::current();
     style.ScaleAllSizes(scale);
     // ScaleAllSizes truncates this one to a whole number, so any factor below 1 zeroes it and the
-    // cursor draws with no area. Below the authored geometry it holds its authored size instead.
+    // cursor draws with no area. Held at 1 instead, which is the size it is authored at.
     style.MouseCursorScale = (std::max)(1.0F, style.MouseCursorScale);
     style.FontSizeBase = fontSizeBase;
     style.FontScaleMain = scale;

@@ -87,12 +87,9 @@ publish_item_definitions(std::span<const items::Definition> definitions) noexcep
 
 /**
  * Finds one installed item by the native dense definition index used by Collections requests.
-
- * * @param definitionIndex Native item-definition row index.
- * @param definition Receives the
- * exact installed mapping.
- * @return True when the complete table is ready and contains the
- * requested row.
+ * @param definitionIndex Native item-definition row index.
+ * @param definition Receives the exact installed mapping.
+ * @return True when the complete table is ready and contains the requested row.
  */
 [[nodiscard]] bool find_item_definition_index(std::uint16_t definitionIndex,
                                               items::Definition& definition) noexcept;
@@ -263,19 +260,15 @@ void invalidate_ability_buckets() noexcept;
 
 /**
  * @return True when at least one socket-entry list's resolved bucket destinations are published.
- * Unlike the ability buckets above, this is never part of the on-disk content cache: it is a
- * small derived table, cheap to recompute, so a warm boot that skips re-extraction (because the
- * ability buckets it gates alongside are already cached) must not leave it permanently empty for
- * the whole session. package_item_rows.cpp checks this independently of ability_buckets_ready()
- * so a warm cache still triggers the one extraction pass this table needs.
+ * Never part of the on-disk content cache: it is small and cheap to recompute, so a warm boot that
+ * skips re-extraction must not leave it empty for the whole session.
  */
 [[nodiscard]] bool socket_entry_buckets_ready() noexcept;
 
 /**
  * Publishes every socket-entry list's resolved per-entry ability-bucket destinations.
- * Purely a derived cache of static content (which of the 12 semantic ability buckets each entry's
- * selector chain reaches), so unlike the ability buckets above it never needs invalidating: a
- * subclass's entry table does not change after content extraction.
+ * A derived cache of static content, so unlike the ability buckets above it never needs
+ * invalidating: a subclass's entry table does not change after content extraction.
  * @param definitions Complete rows, one per socket-entry list that carries a super lane.
  * @return True when the rows pass the checks.
  */
@@ -375,9 +368,8 @@ inline constexpr std::size_t kSubclassGroupSize = 3;
 
 /**
  * Finds the 2 other subclasses that share one character class with a known member.
- * The installed manifest lists every subclass item (any item carrying a socket-entry-list)
- * together as one dense run per class, in native definition-index order, so the run holding a
- * known member gives every other member with no per-class identity of its own to look up.
+ * The installed manifest lists every subclass item as one dense run per class, in native
+ * definition-index order, so the run holding a known member gives every other member.
  * @param memberDefinitionIndex Native item-definition index of one subclass in the class.
  * @param group Receives the 3 member indices, in native definition-index order.
  * @return True when every subclass item was found and `memberDefinitionIndex` is one of them.

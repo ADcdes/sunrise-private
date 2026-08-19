@@ -11,23 +11,18 @@ namespace sunrise::client::inactivity {
 inline constexpr std::size_t kActivityCount = 14;
 
 /**
- * Shortest timeout offered, in milliseconds.
- *
- * The Client will not time any lane out until the session has outlived its own grace, which is
- * around a minute on this build and which this module does not write. A shorter lane could not
- * fire any sooner, so offering one would only look like a hold that is not working. A file
- * carrying a smaller value is clamped up to this rather than refused.
+ * Shortest timeout offered, in milliseconds. A file carrying less is clamped up, not refused.
+ * The matchmade lanes cannot fire until the session outlives the grace, about a minute here, so
+ * a shorter value would only look like a hold that is not working.
  */
 inline constexpr std::uint32_t kMinimumTimeoutMs = 60000;
 /** Longest timeout offered, in milliseconds. A day outlasts any session. */
 inline constexpr std::uint32_t kMaximumTimeoutMs = 86400000;
 
 /**
- * The orbit lane.
- *
- * A timeout that fires in orbit drops the session, and this Client cannot establish another one:
- * the next screen is a marrionberry error and the process has to be restarted. The lane is held
- * at its longest whenever the hold is on, and no field or file value reaches it.
+ * The orbit lane. It is the one lane the Client reads without the grace gate, so a short value
+ * fires at once, drops the session and leaves a marionberry error the process cannot recover
+ * from. Held at its longest whenever the hold is on, and no field or file value reaches it.
  */
 inline constexpr std::size_t kOrbitLane = 13;
 
@@ -69,13 +64,10 @@ inline constexpr std::array<ActivityInfo, kActivityCount> kActivities{{
 /** Compiled lanes a fresh install holds. */
 inline constexpr std::array<std::uint32_t, kActivityCount> kDefaultTimeouts = longest_timeouts();
 
-
 /**
  * Runtime inactivity configuration. This module owns it; Core settings do not carry it.
- *
- * The two switches are exclusive, because they describe opposite behaviour: one removes every
- * timeout and the other replaces each with a chosen one. Neither set leaves the Client's own
- * timeouts in place.
+ * The two switches are exclusive: one removes every timeout, the other replaces each with a
+ * chosen one. Neither leaves the Client's own timeouts in place.
  */
 struct Settings {
     /** Milliseconds per lane, in block order. Held only while custom is set. */

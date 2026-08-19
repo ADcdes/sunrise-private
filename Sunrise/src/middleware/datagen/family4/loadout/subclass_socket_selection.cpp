@@ -57,11 +57,9 @@ void resolve_socket_states(
     SubclassSelection selection{};
     subclass_selection(item, characterClass, selection);
 
-    // A group of 2 or 3 entries (grenade, movement, class ability) is an ordinary set of mutually
-    // exclusive alternatives: exactly one is meant to light up. An Attunement's group is far
-    // wider (it packs several 4-node options into one group id), so a population past the widest
-    // single bundle is the signal that this group's members activate in same-sized runs rather
-    // than as lone alternatives.
+    // A group of 2 or 3 entries is mutually exclusive alternatives: exactly one lights up. An
+    // Attunement's group packs several 4-node options into one group id, so a population past the
+    // widest single bundle means its members activate in same-sized runs.
     std::array<std::uint16_t, build_socket_lists::kEntryCapacity> groupPopulation{};
     for (std::size_t index = 0; index < definition.entryCount; ++index) {
         const std::uint8_t group = entries.entries[index].group;
@@ -90,12 +88,12 @@ void resolve_socket_states(
             continue;
         }
         // A pick can bundle several consecutive entries under the same group, all publishing
-        // together (an Attunement's melee, plus the passive nodes it carries with it). Siblings
-        // normally carry their own distinct plug source, so force the whole contiguous run active
-        // rather than relying on the plug-source match below to find them.
+        // together. Siblings carry their own plug source, so force the whole contiguous run
+        // active rather than relying on the plug-source match below.
         forcedActive[selected.entry] = true;
         for (std::size_t offset = 1;
-             offset < state::kMaxAttunementBundleSize && selected.entry + offset < definition.entryCount
+             offset < state::kMaxAttunementBundleSize
+             && selected.entry + offset < definition.entryCount
              && entries.entries[selected.entry + offset].group == entry.group;
              ++offset) {
             forcedActive[selected.entry + offset] = true;

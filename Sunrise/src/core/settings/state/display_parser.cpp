@@ -1,14 +1,9 @@
 #include <bitset>
+#include <limits>
 
 #include "../parser.h"
 
 namespace sunrise::core::settings::parser {
-namespace {
-
-/** DXGI accepts sync intervals from immediate presentation through every fourth refresh. */
-constexpr std::uint64_t kMaximumVerticalSyncInterval = 4;
-
-} // namespace
 
 /** Parses screen and renderer settings under stable Sunrise-owned names. */
 bool Parser::display_settings(state::account::settings::Display& output) noexcept {
@@ -26,6 +21,8 @@ bool Parser::display_settings(state::account::settings::Display& output) noexcep
         return false;
     }
     std::bitset<static_cast<std::size_t>(Field::count)> supplied;
+    // Tracked apart from the bitset because these two keys are optional: an enumerated field is
+    // required by the supplied.all() below, and an older settings file does not carry them.
     bool hasVerticalSyncInterval = false;
     bool hasFieldOfView = false;
     const auto mark = [&supplied](Field field) noexcept {
@@ -58,8 +55,10 @@ bool Parser::display_settings(state::account::settings::Display& output) noexcep
             }
         } else if (key == "vertical_sync_interval") {
             std::uint64_t value = 0;
+            // Bounds the narrowing only. The 0 to 4 presentation domain is checked with the rest
+            // of the account settings, so it is stated once.
             if (hasVerticalSyncInterval || !unsigned_integer(value)
-                || value > kMaximumVerticalSyncInterval) {
+                || value > (std::numeric_limits<std::uint8_t>::max)()) {
                 return false;
             }
             output.verticalSyncInterval = static_cast<std::uint8_t>(value);

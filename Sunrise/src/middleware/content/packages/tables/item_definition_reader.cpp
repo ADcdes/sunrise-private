@@ -280,6 +280,11 @@ void read_plug_block(std::span<const std::byte> definition, Row& row) noexcept {
     }
 }
 
+/**
+ * Reads the investment stat block into the row.
+ * @param definition Whole item definition record.
+ * @param row Receives the stats, left empty when the block is absent or malformed.
+ */
 void read_stats(std::span<const std::byte> definition, Row& row) noexcept {
     row.statCount = 0;
     std::int64_t blockRelative = 0;

@@ -13,7 +13,6 @@
 #include "../../../../core/ui/runtime/ui_visibility_runtime.h"
 #include "../../../../core/ui/scaling/dpi/ui_dpi_scaling.h"
 #include "../../../../core/ui/theme/sunrise_ui_theme.h"
-#include "../../inactivity/inactivity_override.h"
 #include "../input/input.h"
 #include "graphics_renderer_report.h"
 #include "state.h"
@@ -127,8 +126,6 @@ void render_frame_locked() noexcept {
     if (!fully_active_locked()) {
         return;
     }
-    // A steady tick with the game fully up, which is all the timeout hold needs.
-    hooks::inactivity::poll();
     if (core::ui::scaling::dpi::update(g_resources.window)) {
         // Style and text scale change together, before the backend sets up the frame.
         core::ui::theme::apply();

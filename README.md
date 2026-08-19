@@ -50,6 +50,7 @@ Make sure you have `git`, `cmake`, `clang`, `ninja`, `llvm`, and `xwin` installe
 $ git clone https://github.com/stanuwu/Sunrise
 $ cd Sunrise
 ```
+
 2. Download Windows headers:
 ```bash
 $ xwin --accept-license splat --include-debug-libs --sdk-version 10.0.26100 --output .xwin-cache

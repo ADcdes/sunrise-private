@@ -98,8 +98,7 @@ inline constexpr std::uint8_t kDefaultClassAbilityEntry = 2;
 /**
  * Semantic ability-bucket destinations shared by the wire encoder and the selection logic that
  * routes a clicked socket entry to a character field. A subclass entry's authored selector chain,
- * not its table position, decides which of these it reaches; a bundled pick (an Attunement, for
- * example) can freely mix members across them.
+ * not its table position, decides which it reaches; a bundled pick can mix members across them.
  */
 inline constexpr std::uint8_t kGrenadeAbilityBucket = 0;
 inline constexpr std::uint8_t kSuperAbilityBucket = 1;
@@ -147,9 +146,8 @@ struct CharacterState {
     bool contentBypass{};
     /**
      * Runtime-only socket entries the player has selected at least once. Selected entries still
-     * publish active; this mask keeps a later inactive entry acquired instead of new/unclaimed.
-     * EXPERIMENT: defaulted to all-set so every ready entry reads as acquired instead of new, to
-     * test whether the client only allows clicking an already-acquired node.
+     * publish active; this mask keeps a later inactive entry acquired instead of new. Unverified:
+     * defaulted all-set, assuming the Client only allows clicking an already-acquired node.
      */
     std::uint64_t acquiredSubclassAbilityMask{~std::uint64_t{0}};
     /** Authored loadout keyed only by stable semantic equipment slots. */

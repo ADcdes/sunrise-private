@@ -429,14 +429,14 @@ append_socket_plug_notification(Scratch& scratch,
                                 std::size_t& written) noexcept;
 
 /** Appends the opcode-801 Family-4 subclass item-instance upsert. */
-[[nodiscard]] bool append_subclass_selection_notification(
-    Scratch& scratch,
-    const queuez::SubclassSelection& selection,
-    const state::PendingSubclassSelection& mutation,
-    std::span<const std::byte, state::kAesKeySize> key,
-    std::span<const std::byte, state::kBapNonceSize> nonce,
-    std::span<std::byte> response,
-    std::size_t& written) noexcept;
+[[nodiscard]] bool
+append_subclass_selection_notification(Scratch& scratch,
+                                       const queuez::SubclassSelection& selection,
+                                       const state::PendingSubclassSelection& mutation,
+                                       std::span<const std::byte, state::kAesKeySize> key,
+                                       std::span<const std::byte, state::kBapNonceSize> nonce,
+                                       std::span<std::byte> response,
+                                       std::size_t& written) noexcept;
 
 /** Appends a Family-4 character upsert plus newly acquired item-instance upsert. */
 [[nodiscard]] bool

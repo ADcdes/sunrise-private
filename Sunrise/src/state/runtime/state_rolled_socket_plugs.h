@@ -9,16 +9,9 @@
 namespace sunrise::state::runtime::detail {
 
 /**
- * Some sockets offer only action plugs: an "apply" and a "re-roll" that carry no effect of their
- * own. The live service answered them by socketing one plug out of a set it rolled from, and
- * those result plugs are never in the socket's own pool. The installed data still marks them:
- * every result plug names the roll set that grants it, and shares its plug category with the
- * action plugs of the same socket. Year-1 weapon masterworks (one stat bonus each) and Year-1
- * armor masterworks (each standing for one of the piece's own stat perks) are the two families
- * this build carries.
- *
- * Everything below is derived from the installed item table at call time; nothing names a
- * particular plug.
+ * Some sockets offer only action plugs, which carry no effect of their own. The service answered
+ * them with a result plug from a roll set: result plugs sit outside the socket's own pool but each
+ * names its set and shares the action plugs' category. All of it is derived from the item table.
  */
 
 /** How one requested plug should be socketed. */
@@ -57,14 +50,9 @@ struct RolledPlug {
 };
 
 /**
- * Rolls one result plug for a target item.
- *
- * Results that carry stats (weapon masterworks) are eligible when every stat they contribute
- * is one the target declares. Results that stand for another plug (armor masterworks) are
- * eligible when the target's socket pools offer one of the perks of their group, a group being
- * the results authored together for one class and slot; a target offering none takes the
- * delegate-less result for the character's class. The current plug is never rolled again, so a
- * re-roll changes something whenever more than one result is eligible.
+ * Rolls one result plug for a target item. A stat-carrying result needs every stat it contributes
+ * declared by the target; a delegating result needs the target's pools to offer a perk of its
+ * group, else the delegate-less result for the class. The current plug is never rolled again.
  * @param requested The action plug, which names the roll set through its category.
  * @param target Installed detail of the item being socketed.
  * @param characterClass Wire class of the owning character.

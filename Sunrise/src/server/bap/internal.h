@@ -121,9 +121,8 @@ struct Session {
     std::uint64_t activityRosterDueTick{};
     /**
      * Binding generation whose membership body this link has already delivered.
-     * The client sets its own membership flag once and never clears it, and never acknowledges a
-     * body on a public-target link, so a send condition has to be a one-shot per binding rather
-     * than a revision or acknowledgement gate. Latched on delivery, never on encode.
+     * The client sets its membership flag once and never clears it, and never acknowledges a body
+     * on a public-target link, so this is a one-shot per binding. Latched on delivery, not encode.
      */
     std::uint64_t activityMembershipSentGeneration{};
     /**
@@ -174,12 +173,9 @@ struct Session {
     /** True while another peer's account mutation still needs a full local refresh. */
     bool accountResyncArmed{};
     /**
-     * Tick count after which the owed ability-icon refresh may go out.
-     * A subclass selection invalidates the published ability buckets; the rebuild that restores
-     * them runs asynchronously off the Client content-extraction pump, so the appearance and
-     * roster refresh sent inline with the selection response can still carry the stale or empty
-     * buckets. This second, delayed refresh re-derives both records from committed State once the
-     * rebuild has had time to land.
+     * Tick count after which the owed ability-icon refresh may go out. A subclass selection
+     * invalidates the published ability buckets and the rebuild runs off the Client
+     * content-extraction pump, so the inline refresh can carry empty ones; this one re-derives.
      */
     std::uint64_t abilityRefreshDueTick{};
     /** True while one ability-icon refresh is still owed to this peer. */

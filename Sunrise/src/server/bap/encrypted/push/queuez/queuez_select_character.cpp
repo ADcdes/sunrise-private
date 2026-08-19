@@ -180,8 +180,7 @@ bool append_subclass_selection_notification(Scratch& scratch,
     }
     const std::size_t objectCount = prepared.family.objects.size();
     const std::size_t beforeBytes = written;
-    if (objectCount != 1
-        || prepared.family.objects.front().id != selection.itemInstanceDefinitionId
+    if (objectCount != 1 || prepared.family.objects.front().id != selection.itemInstanceDefinitionId
         || prepared.family.objects.front().version != selection.subclassInstanceSoid
         || prepared.family.objects.front().encoding != middleware::queuez::Encoding::oodle
         || prepared.family.objects.front().payload.empty()

@@ -794,6 +794,8 @@
     <ClCompile Include="src\middleware\gameplay\descriptor\join_descriptor.cpp" />
     <ClCompile Include="src\server\gameplay\gameplay_advertisement.cpp" />
     <ClCompile Include="src\middleware\web_service\messages\opcode901\opcode901_codec.cpp" />
+    <ClCompile Include="src\middleware\web_service\messages\opcode801_codec.cpp" />
+    <ClCompile Include="src\state\build_data\socket_entry_buckets\socket_entry_bucket_catalog.cpp" />
     <ClCompile Include="src\middleware\gameplay\peer\reliable_assembly.cpp" />
     <ClCompile Include="src\middleware\gameplay\peer\join_messages.cpp" />
     <ClCompile Include="src\middleware\gameplay\group\session_messages.cpp" />
@@ -1389,6 +1391,9 @@
     <ClInclude Include="src\middleware\gameplay\descriptor\join_descriptor.h" />
     <ClInclude Include="src\server\gameplay\gameplay_advertisement.h" />
     <ClInclude Include="src\middleware\web_service\messages\opcode901\opcode901_codec.h" />
+    <ClInclude Include="src\middleware\web_service\messages\opcode801.h" />
+    <ClInclude Include="src\state\build_data\socket_entry_buckets\definition.h" />
+    <ClInclude Include="src\state\build_data\socket_entry_buckets\socket_entry_bucket_catalog.h" />
     <ClInclude Include="src\middleware\gameplay\peer\reliable_assembly.h" />
     <ClInclude Include="src\middleware\gameplay\peer\join_messages.h" />
     <ClInclude Include="src\middleware\gameplay\group\session_messages.h" />

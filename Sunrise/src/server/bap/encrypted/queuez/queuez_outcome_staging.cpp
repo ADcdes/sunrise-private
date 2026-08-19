@@ -83,9 +83,8 @@ bool stage_service_outcome(Scratch& scratch,
             armsAbilityRefresh = true;
         }
         // Family four drives inventory placement, while Family zero owns the rendered appearance
-        // consumed by the open cosmetic panels and world player. Its resident character record is
-        // updated in place: releasing and re-adding the same key tears down the ship/banner
-        // binding.
+        // the cosmetic panels and world player consume. Its resident character record is updated
+        // in place: releasing and re-adding the same key tears down the ship/banner binding.
         if (after.family0Active) {
             CharacterAppearanceRefresh refresh{};
             if (!stage_character_appearance_refresh(
@@ -144,10 +143,9 @@ bool stage_service_outcome(Scratch& scratch,
         middleware::secure_channel::advance_nonce(nonce);
         after = update.after;
     } else if (subclassSelection != nullptr) {
-        // Body processing already staged the exact +1 revision promised by opcode 801. Publish
-        // the resident subclass instance upsert, then the character-summary appearance and
-        // roster refreshes so gameplay's ability read picks up the new selection immediately
-        // instead of waiting on the next unrelated poll.
+        // Body processing already staged the exact +1 revision opcode 801 promised. The instance
+        // upsert goes first, then the appearance and roster refreshes, so gameplay reads the new
+        // selection now rather than on the next unrelated poll.
         const SubclassSelection& selection = subclassSelection->update;
         bool preservedManifest =
             selection.after.family4ResidentCount == before.family4ResidentCount;
@@ -165,18 +163,12 @@ bool stage_service_outcome(Scratch& scratch,
         if (!valid(selection.after) || !preservedManifest || targetMatches != 1
             || selection.accountSoid != subclassSelection->pending.accountSoid
             || selection.characterSoid != subclassSelection->pending.characterSoid
-            || selection.subclassInstanceSoid
-                   != subclassSelection->pending.subclassInstanceSoid
+            || selection.subclassInstanceSoid != subclassSelection->pending.subclassInstanceSoid
             || selection.after.family4RootSoid != before.family4RootSoid
             || before.family4Version == (std::numeric_limits<std::int32_t>::max)()
             || selection.after.family4Version != before.family4Version + 1
-            || !push::append_subclass_selection_notification(scratch,
-                                                              selection,
-                                                              subclassSelection->pending,
-                                                              key,
-                                                              nonce,
-                                                              response,
-                                                              written)) {
+            || !push::append_subclass_selection_notification(
+                scratch, selection, subclassSelection->pending, key, nonce, response, written)) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::warn,
                              "ev=queuez stage=subclass_select result=fail");
@@ -184,10 +176,9 @@ bool stage_service_outcome(Scratch& scratch,
         }
         middleware::secure_channel::advance_nonce(nonce);
         after = selection.after;
-        // The rebuild that repopulates the invalidated ability buckets runs asynchronously, off
-        // the Client content-extraction pump, so the two refreshes below can still race it and
-        // carry stale or empty buckets. A delayed re-derivation is owed regardless of whether they
-        // do.
+        // The ability-bucket rebuild runs off the Client content-extraction pump, so the two
+        // refreshes below can race it and carry empty buckets. The delayed re-derivation is owed
+        // either way.
         armsAbilityRefresh = true;
         // A subclass is always equipped, so both the appearance and roster ability reads are
         // always owed a refresh once one is active.

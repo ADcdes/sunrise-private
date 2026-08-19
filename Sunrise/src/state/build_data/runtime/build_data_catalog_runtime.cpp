@@ -253,8 +253,7 @@ bool publish_ability_buckets(std::span<const abilities::Definition> definitions)
     }
     // The disk cache already froze every domain at boot, so the transaction above refuses to run.
     // Ability buckets track the player's live subclass selection rather than installed content, so
-    // a later in-session pick still has to update this one domain in memory; it just no longer
-    // takes part in the one-time disk snapshot.
+    // a later in-session pick still updates this one domain in memory.
     if (!abilities::replace(definitions)) {
         return false;
     }

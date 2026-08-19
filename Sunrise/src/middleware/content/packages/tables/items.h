@@ -99,19 +99,14 @@ void read_appearance(std::span<const std::byte> definition, Row& row) noexcept;
 using AllowedPlugVisitor = bool (*)(void* context, std::uint32_t itemDefinitionIndex) noexcept;
 
 /**
- * Visits the embedded, reusable, and randomized plug-list members declared for one socket
- * lane.
+ * Visits the embedded, reusable, and randomized plug-list members declared for one socket lane.
  * The initial plug is a separate fixed field and is intentionally left to the caller.
- *
  * @param definition Whole base-item definition bytes.
- * @param plugSetTable Whole shared plug-set
- * definition table from investment-root slot 51.
+ * @param plugSetTable Whole shared plug-set definition table from investment-root slot 51.
  * @param lane Ordinary socket lane to inspect.
- *
  * @param visitor Required bounded consumer.
  * @param context Opaque consumer state.
- * @return
- * True when every referenced array is structurally valid and accepted by the visitor.
+ * @return True when every referenced array is structurally valid and accepted by the visitor.
  */
 [[nodiscard]] bool visit_allowed_plugs(std::span<const std::byte> definition,
                                        std::span<const std::byte> plugSetTable,

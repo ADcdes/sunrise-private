@@ -1,4 +1,4 @@
-﻿/** Dismantle staging: the payout it credits and the after-image it is committed against. */
+/** Dismantle staging: the payout it credits and the after-image it is committed against. */
 
 #include <Windows.h>
 
@@ -148,7 +148,9 @@ void report_dismantle_reward_dropped(std::string_view reason,
 
 /** Per-stat-row tally of one lane's pool, enough to recognise a masterwork tier ladder. */
 struct LadderTally {
+    /** A stat row is one byte, so this covers every row a definition can name. */
     static constexpr std::size_t kRowCount = 256;
+    /** Distinct values one row can track, which is the width of the seen mask. */
     static constexpr std::size_t kValueBits = 64;
     std::array<std::uint16_t, kRowCount> members{};
     std::array<std::int32_t, kRowCount> greatest{};
@@ -179,18 +181,15 @@ bool tally_member(void* context, std::uint16_t plugIndex) noexcept {
 }
 
 /**
- * @return True when the plug in one lane sits high enough on that lane's masterwork ladder.
- *
- * A masterwork lane's pool is a ladder: its tier plugs all carry the same stat row, each with
- * a different value, one per tier. Any lane whose pool has such a row for the plug's stats is a
- * ladder; a mod pool is not, because many mods repeat the same value. A weapon counts only at
- * the top of its ladder; armor counts from halfway up, which is where the service started
- * refunding materials.
+ * @return True when the plug sits high enough on its lane's masterwork ladder, a pool whose
+ *         plugs share one stat row with a distinct value each. Assumed: the weapon-at-top and
+ *         armor-at-halfway cut-offs come from service behaviour, not from the Client.
  */
 [[nodiscard]] bool on_masterwork_ladder(const item_details::Definition& target,
                                         std::uint8_t lane,
                                         const item_details::Definition& plug,
                                         bool weapon) noexcept {
+    // Below three rungs a pool cannot be told apart from a mod pool that happens not to repeat.
     constexpr std::uint16_t kMinimumLadderRungs = 3;
     if (plug.statCount == 0 || plug.statCount > plug.stats.size()) {
         return false;
@@ -268,7 +267,10 @@ bool tally_member(void* context, std::uint16_t plugIndex) noexcept {
                                   std::uint8_t tier,
                                   std::uint8_t gearClass,
                                   bool isMasterworked) noexcept {
-    if (policy.tierMask != 0 && (policy.tierMask & (1U << tier)) == 0) {
+    // The mask is eight bits wide, so a manifest tier past it cannot be selected. Tested before
+    // the shift, which is undefined once the tier reaches the width of the shifted type.
+    constexpr std::uint8_t kTierBits = 8;
+    if (policy.tierMask != 0 && (tier >= kTierBits || (policy.tierMask & (1U << tier)) == 0)) {
         return false;
     }
     if (policy.classMask != 0 && (policy.classMask & gearClass) == 0) {
@@ -286,12 +288,8 @@ bool tally_member(void* context, std::uint16_t plugIndex) noexcept {
 
 /**
  * Credits the supported client's ordinary weapon/armor dismantle payout.
- *
- * Every policy row whose rarity, gear-class and masterwork filters match the dismantled item is
- * summed per material first, so one material lands as one credited row. Capped stacks lose only
- * the overflowing part, matching normal profile-inventory behavior; a stack already at its
- * native cap drops that row's payout and says so in the log. Every credited row receives a new
- * mutation serial so the account observer can display it.
+ * Matching policy rows are summed per material first, so one material lands as one credited row.
+ * A capped stack loses only the overflow and says so in the log. Each credited row gets a serial.
  */
 [[nodiscard]] bool
 apply_dismantle_rewards(const AccountState& before,
@@ -390,9 +388,9 @@ apply_dismantle_rewards(const AccountState& before,
         }
 
         const bool appended = profileIndex == after.profileItemCount;
-        if ((appended && after.profileItemCount >= after.profileItems.size())
-            || greatestMutationSerial == (std::numeric_limits<std::int32_t>::max)()) {
-            report_dismantle_reward_dropped(appended ? "profile_full" : "serial_exhausted",
+        const bool profileFull = appended && after.profileItemCount >= after.profileItems.size();
+        if (profileFull || greatestMutationSerial == (std::numeric_limits<std::int32_t>::max)()) {
+            report_dismantle_reward_dropped(profileFull ? "profile_full" : "serial_exhausted",
                                             policy.definitionHash,
                                             policy.quantity,
                                             0,

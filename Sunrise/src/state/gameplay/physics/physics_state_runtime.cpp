@@ -16,6 +16,8 @@ constexpr std::uint8_t kWireIncarnationMask = kWireIncarnationCount - 1;
 /** The first process-local handle generation follows the cleared zero sentinel. */
 constexpr std::uint64_t kFirstHandleGeneration = 1;
 
+// No member initializers below: MSVC exhausts its heap on the 4 MB g_storage aggregate.
+
 /** One fixed allocator record. Exact owners live in context or peer ticket tables. */
 struct SlotRecord final {
     std::uint64_t actorId;
@@ -78,7 +80,11 @@ struct Storage final {
     bool ready;
 };
 
-Storage g_storage{SRWLOCK_INIT, {}, kFirstHandleGeneration, false};
+// Designated so a reordered member cannot silently shift these values.
+Storage g_storage{.lock = SRWLOCK_INIT,
+                  .contexts = {},
+                  .nextHandleGeneration = kFirstHandleGeneration,
+                  .ready = false};
 
 /** Clears all records but preserves the process-local handle sequence and Windows lock. */
 void clear_storage() noexcept {

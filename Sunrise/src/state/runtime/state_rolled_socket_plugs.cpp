@@ -15,6 +15,7 @@ namespace items = build_data::items;
 
 /** Result plugs of one category, in installed-table order. */
 struct ResultSet {
+    /** Most result plugs any one category carries in the installed table. */
     static constexpr std::size_t kCapacity = 64;
     std::array<items::Definition, kCapacity> results{};
     std::size_t count{};
@@ -162,6 +163,7 @@ resolve_link(const items::Definition& result, std::uint8_t lane, RolledPlug& rol
 
 } // namespace
 
+/** Classifies one requested plug for one target lane. */
 RolledPlugAction classify_rolled_plug(const items::Definition& requested,
                                       const items::Definition& target,
                                       std::uint8_t lane) noexcept {
@@ -183,6 +185,7 @@ bool is_rolled_result(std::uint32_t plugHash) noexcept {
            && definition.definitionHash == plugHash && items::rolled_result(definition);
 }
 
+/** Rolls one result plug for a target item. */
 bool roll_socket_plug(const items::Definition& requested,
                       const item_details::Definition& target,
                       std::uint8_t characterClass,
@@ -238,6 +241,7 @@ bool roll_socket_plug(const items::Definition& requested,
     return resolve_link(result, pickLanes[chosen], rolled);
 }
 
+/** Re-derives the linked perk for a result an earlier staging rolled. */
 bool pin_rolled_plug(std::uint32_t plugHash,
                      const item_details::Definition& target,
                      RolledPlug& rolled) noexcept {
