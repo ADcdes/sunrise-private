@@ -39,6 +39,29 @@ PRs are for pull requests only.
 
 Do not go and argue/chat there, you can do that on the discord.
 
+## Building
+
+### Linux
+
+Make sure you have `git`, `cmake`, `clang`, `ninja`, `llvm`, and `xwin` installed.
+
+1. Clone the repository
+```bash
+$ git clone https://github.com/stanuwu/Sunrise
+$ cd Sunrise
+```
+2. Download Windows headers:
+```bash
+$ xwin --accept-license splat --include-debug-libs --sdk-version 10.0.26100 --output .xwin-cache
+```
+
+3. Configure and build the project
+```bash
+$ cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$(pwd)/linux-to-win-toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+$ cmake --build build --config Release
+```
+4. Copy the dll from `build/x64/Release/steam_api64.dll` into your Destiny install 
+
 ## Contributing
 
 Pull Requests are welcome. Please follow these rules:
