@@ -198,7 +198,7 @@ void track(std::int64_t client, std::uint64_t now) noexcept {
 
 /** Reads the status word, defers to the original, then reads it again. */
 char __fastcall receive(std::int64_t client, std::int64_t body, int size) noexcept {
-    const auto* original = reinterpret_cast<Receive>(g_handle.original);
+    auto* original = reinterpret_cast<Receive>(g_handle.original);
     if (original == nullptr || client == 0) {
         return original != nullptr ? original(client, body, size) : 0;
     }
