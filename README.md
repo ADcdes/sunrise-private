@@ -41,6 +41,27 @@ Do not go and argue/chat there, you can do that on the discord.
 
 ## Building
 
+### Windows
+
+Install Visual Studio 2026 with the **Desktop development with C++** workload. The project builds
+against the v145 toolset and the 10.0.26100 Windows SDK, so check that both are selected in the
+installer.
+
+The easiest route is to open `Sunrise.sln`, select the `Release` `x64` configuration and build.
+
+To build from a command line, use the Developer PowerShell for VS 2026:
+
+1. Clone the repository
+```powershell
+git clone https://github.com/stanuwu/Sunrise
+cd Sunrise
+```
+
+2. Build the solution
+```powershell
+msbuild Sunrise.sln /m /p:Configuration=Release /p:Platform=x64
+```
+
 ### Linux
 
 Make sure you have `git`, `cmake`, `clang`, `ninja`, `llvm`, and `xwin` installed.
@@ -61,7 +82,6 @@ $ xwin --accept-license splat --include-debug-libs --sdk-version 10.0.26100 --ou
 $ cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$(pwd)/linux-to-win-toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 $ cmake --build build --config Release
 ```
-4. Copy the dll from `build/x64/Release/steam_api64.dll` into your Destiny install 
 
 ## Contributing
 
