@@ -237,6 +237,8 @@
           "brightness": 3,
           "show_fps": false,
           "hdr_mode": 0,
+          "vertical_sync_interval": 0,
+          "field_of_view": 85,
           "calibration_primary": 10000.0,
           "calibration_alpha": 0.0
         },
@@ -269,6 +271,7 @@
           "clan_chat_join_mode": 1,
           "chat_auto_hide_mode": 1
         },
+        "key_binding_source": "computer",
         "key_bindings": {
           "fire": { "primary": "left mouse button", "secondary": null },
           "toggle_zoom": { "primary": null, "secondary": null },

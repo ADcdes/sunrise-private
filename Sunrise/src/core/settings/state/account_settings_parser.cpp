@@ -25,6 +25,7 @@ bool Parser::account_settings(state::account::settings::AccountSettings& output)
         return false;
     }
     std::bitset<static_cast<std::size_t>(Group::count)> supplied;
+    bool hasKeyBindingSource = false;
     const auto mark = [&supplied](Group group) noexcept {
         const std::size_t index = static_cast<std::size_t>(group);
         if (supplied.test(index)) {
@@ -61,6 +62,19 @@ bool Parser::account_settings(state::account::settings::AccountSettings& output)
             if (!mark(Group::social) || !social_settings(output.social)) {
                 return false;
             }
+        } else if (key == "key_binding_source") {
+            std::string_view source;
+            if (hasKeyBindingSource || !string(source)) {
+                return false;
+            }
+            if (source == "account") {
+                output.keyBindingSource = state::account::settings::KeyBindingSource::account;
+            } else if (source == "computer") {
+                output.keyBindingSource = state::account::settings::KeyBindingSource::computer;
+            } else {
+                return false;
+            }
+            hasKeyBindingSource = true;
         } else if (key == "key_bindings") {
             if (!mark(Group::keyBindings) || !key_bindings(output.keyBindings)) {
                 return false;
